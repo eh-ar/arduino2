@@ -10,8 +10,8 @@
 const int EEPROM_ADDRESS = 0;
 unsigned long timerValue = 0;
 #define NSS 10
-#define NRESET 7
-#define DIO0 6
+#define NRESET 5
+#define DIO0 4
 #define BAND 433E6
 
 #define Rx 3
