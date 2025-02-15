@@ -74,15 +74,14 @@ void setup() {
   mySerial.begin(9600);
   //node.begin(50, mySerial);
   // Set up the watchdog timer to wake up every 8 seconds
-  wdt_enable(WDTO_8S);
-  WDTCSR |= (1 << WDIE);  // Enable interrupt mode
+  
 }
 
 
 void loop() {
   Serial.println("loop");
-  if (f_wdt) {
-    f_wdt = false;  // Clear the watchdog timer flag
+  //if (f_wdt) {
+  //  f_wdt = false;  // Clear the watchdog timer flag
 
     // Increment wake-up counter
     wakeUpCounter++;
@@ -121,6 +120,7 @@ void loop() {
       delay(100);
       */
       if (d2 == "") {
+        Serial.println("rs485 1, try 2");
         delay(1000);
         d2 = readRS485Device(1, 0, 6);
       }
@@ -135,6 +135,7 @@ void loop() {
       }
       */
 
+      Serial.println("prepare message");
       String mmsg = String(timerValue);
 
       Serial.println("-----------------------");
@@ -151,11 +152,13 @@ void loop() {
       //delay(3000); // Let serial communication finish
 
       EEPROM.put(EEPROM_ADDRESS, timerValue);
+      //wdt_enable(WDTO_8S);
+      //WDTCSR |= (1 << WDIE);  // Enable interrupt mode
     }
 
     // Enter sleep mode
-    sleepNow();
-  }
+    //sleepNow();
+  //}
 }
 
 void sleepNow() {

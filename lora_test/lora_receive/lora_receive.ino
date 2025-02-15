@@ -5,8 +5,8 @@
 
 SoftwareSerial mySerial(2, 3);  // RX, TX
 #define NSS 10
-#define NRESET 7
-#define DIO0 6
+#define NRESET 4
+#define DIO0 5
 #define BAND 433E6  // Set frequency to 433 MHz
 
 
