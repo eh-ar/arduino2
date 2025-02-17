@@ -17,12 +17,14 @@ unsigned long timerValue = 0;
 #define Rx 3
 #define Tx 2
 
-int temt6000Pin = A1;
-float light;
-int light_value;
+int vin = A0;
+int sensorV = A1;
+float vin_m;
+int vin_measure;
 
 SoftwareSerial mySerial(Rx, Tx);
 ModbusMaster node;
+
 volatile bool f_wdt = true;      // Flag for Watchdog Timer
 volatile int wakeUpCounter = 0;  // Counter for wake-ups
 
@@ -55,8 +57,10 @@ void setup() {
   pinMode(NSS, OUTPUT);
   pinMode(NRESET, OUTPUT);
   pinMode(DIO0, INPUT);
-  pinMode(temt6000Pin, INPUT);
+  pinMode(vin, INPUT);
+  pinMode(sensorV,  OUTPUT);
 
+  digitalWrite(sensorV, LOW);
   Serial.begin(115200);
   Serial.println("Starting Module");
   while (!Serial)
@@ -92,64 +96,39 @@ void loop() {
       wakeUpCounter = 0;  // Reset wake-up counter
 
       cc++;
-      Serial.println("analog read");
-      int light_value = analogRead(temt6000Pin);
-      light = light_value * 0.00978;  //* (8/4);
+      Serial.print("analog read");
+      int vin_m = analogRead(vin);
+      vin_measure = vin_m * 0.00978;  //* (8/4);
 
       String d1 = "";
       String d2 = "";
 
 
-      Serial.println("rs485 1");
+      Serial.print(", rs485 1");
       d2 = readRS485Device(1, 0, 5);
       delay(100);
-      //Serial.println(readRS485Device(1, 35, 3));
-      //delay(100);
-      //Serial.println(readRS485Device(1, 80, 4));
-      //delay(100);
-
-      /*
-      Serial.println( readRS485Device(70));
-      delay(100);
-      Serial.println( readRS485Device(71));
-      delay(100);
-      Serial.println( readRS485Device(72));
-      delay(100);
-      Serial.println( readRS485Device(73));
-      delay(100);
-      Serial.println( readRS485Device(74));
-      delay(100);
-      */
+      
       if (d2 == "") {
-        Serial.println("rs485 1, try 2");
+        Serial.print(", rs485 1, try 2");
         delay(1000);
         d2 = readRS485Device(1, 0, 6);
       }
-      //delay(5000);
+     
 
-      /*
-      Serial.println("rs485 2");
-      d2 = readRS485Device(51);
-      if (d2 == ""){
-        delay(5000);
-        d2 = readRS485Device(51);
-      }
-      */
-
-      Serial.println("prepare message");
+      Serial.println(", prepare message");
       String mmsg = String(timerValue);
 
       
-      Serial.println("Sent: " + mmsg + " " + cc);
-      Serial.println("light: " + String(light));
-      Serial.println(d1);
-      Serial.println(d2);
+      Serial.print("message: " + mmsg + " " + cc);
+      Serial.print(", voltage: " + String(vin_measure));
+      Serial.print(d1);
+      Serial.println(" " + d2);
 
-      Serial.println("Sending message");
+      Serial.print("Sending message");
       LoRa.beginPacket();
-      LoRa.print(mmsg + " - " + cc + " - " + light + " - " + d1 + " - " + d2);
+      LoRa.print(mmsg + " - " + cc + " - " + vin_measure + " - " + d1 + " - " + d2);
       LoRa.endPacket();
-      Serial.println("message sent");
+      Serial.println(", message sent");
 
       //delay(3000); // Let serial communication finish
 
@@ -162,6 +141,7 @@ void loop() {
     // Enter sleep mode
     //sleepNow();
   //}
+  delay(8000);
 }
 
 void sleepNow() {
