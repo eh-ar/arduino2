@@ -79,7 +79,8 @@ void setup() {
 
 
 void loop() {
-  Serial.println("loop");
+  Serial.println("-----------------------");
+ 
   //if (f_wdt) {
   //  f_wdt = false;  // Clear the watchdog timer flag
 
@@ -138,20 +139,22 @@ void loop() {
       Serial.println("prepare message");
       String mmsg = String(timerValue);
 
-      Serial.println("-----------------------");
+      
       Serial.println("Sent: " + mmsg + " " + cc);
       Serial.println("light: " + String(light));
       Serial.println(d1);
       Serial.println(d2);
 
+      Serial.println("Sending message");
       LoRa.beginPacket();
       LoRa.print(mmsg + " - " + cc + " - " + light + " - " + d1 + " - " + d2);
       LoRa.endPacket();
-
+      Serial.println("message sent");
 
       //delay(3000); // Let serial communication finish
 
       EEPROM.put(EEPROM_ADDRESS, timerValue);
+      Serial.println("----- ------");
       //wdt_enable(WDTO_8S);
       //WDTCSR |= (1 << WDIE);  // Enable interrupt mode
     }
