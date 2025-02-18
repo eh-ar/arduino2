@@ -7,8 +7,12 @@
 #include <avr/wdt.h>
 #include <ModbusMaster.h>
 
-const int EEPROM_ADDRESS = 0;
+const int EEPROM_ADDRESS1 = 50;
 unsigned long timerValue = 0;
+
+const int EEPROM_ADDRESS2 = 0;
+String ID = "";
+
 #define NSS 10
 #define NRESET 5
 #define DIO0 4
@@ -17,7 +21,6 @@ unsigned long timerValue = 0;
 #define Rx 2
 #define Tx 3
 
-String ID="FA00002";
 
 int vin = A0;
 int sensorV = A1;
@@ -78,79 +81,109 @@ void setup() {
   }
   Serial.println("LoRa Transmitter");
 
-  EEPROM.get(EEPROM_ADDRESS, timerValue);
+  //EEPROM.put(EEPROM_ADDRESS, timerValue);
+  EEPROM.get(EEPROM_ADDRESS1, timerValue);
+  //EEPROM.put(EEPROM_ADDRESS, ID);
+  ID = readStringFromEEPROM(EEPROM_ADDRESS2);
   mySerial.begin(4800);
+  Serial.println(ID);
   //node.begin(50, mySerial);
   // Set up the watchdog timer to wake up every 8 seconds
 }
 
 
+int repeat8 = 15;
+int delaySensor = 2;  ///sec
 void loop() {
-  Serial.println("-----------------------");
+  //Serial.println("-----------------------");
 
-  //if (f_wdt) {
-  //  f_wdt = false;  // Clear the watchdog timer flag
+  if (f_wdt) {
+    f_wdt = false;  // Clear the watchdog timer flag
 
-  // Increment wake-up counter
-  wakeUpCounter++;
-  timerValue += loopDelay;
-  // Check if 8 wake-ups (1 minute) have passed
-  if (wakeUpCounter >= 1) {
-    wakeUpCounter = 0;  // Reset wake-up counter
+    // Increment wake-up counter
+    wakeUpCounter++;
 
-    cc++;
-    //Serial.println(" Vin");
-    float vin_m = analogRead(vin);
-    
-    vin_measure = vin_m * 0.00978;  //* (8/4);
+    // Check if 8 wake-ups (1 minute) have passed
+    if (wakeUpCounter >= repeat8) {
+      wakeUpCounter = 0;  // Reset wake-up counter
+      timerValue += (8 * repeat8 + delaySensor);
+      cc++;
+      //Serial.println(" Vin");
+      turnOnADC();
+      float vin_m = analogRead(vin);
+      vin_measure = vin_m * 0.00978;  //* (8/4);
+      turnOffADC();
 
-    String d1 = "";
-    String d2 = "";
-    String d3 = "";
+      String d1 = "";
+      String d2 = "";
+      String d3 = "";
 
-    Serial.print("Turn on Sensor");
-    digitalWrite(sensorV, HIGH);
+      Serial.print("Turn on Sensor");
+      digitalWrite(sensorV, HIGH);
+      delay(delaySensor * 1000);
 
-    Serial.print(", rs485 1");
-    d1 = readRS485Device(1, 0, 5);
-    delay(100);
-    d2 = readRS485Device(2, 0, 5);
-    delay(100);
-    d3 = readRS485Device(3, 0, 5);
-    delay(100);
-
-
-    Serial.print(", Turn off Sensor");
-    digitalWrite(sensorV, LOW);
-
-    Serial.println(", prepare message");
-    String mmsg = ID + "," + String(timerValue);
+      Serial.print(", rs485 1");
+      d1 = readRS485Device(30, 0, 5);
+      delay(1000);
+      d2 = readRS485Device(60, 0, 5);
+      delay(1000);
+      d3 = readRS485Device(90, 0, 5);
+      delay(100);
 
 
-    Serial.print("message: " + mmsg + " " + cc);
-    Serial.println(", voltage: " + String(vin_measure));
-    Serial.println(d1 + " " + d2 + " " + d3);
+      Serial.print(", Turn off Sensor");
+      digitalWrite(sensorV, LOW);
+
+      Serial.println(", prepare message");
+      String mmsg = String(ID) + "," + String(timerValue);
 
 
-    Serial.println("Sending message");
-    LoRa.beginPacket();
-    LoRa.print(mmsg + "," + cc + "," + vin_measure + "," + d1 + "," + d2+ "," + d3);
-    LoRa.endPacket();
-    Serial.println("message sent");
+      Serial.print("message: " + mmsg + " " + cc);
+      Serial.println(", voltage: " + String(vin_measure));
+      Serial.println(d1 + " " + d2 + " " + d3);
 
-    //delay(3000); // Let serial communication finish
 
-    EEPROM.put(EEPROM_ADDRESS, timerValue);
-    Serial.println("----- ------");
-    //wdt_enable(WDTO_8S);
-    //WDTCSR |= (1 << WDIE);  // Enable interrupt mode
+      Serial.println("Sending message");
+      LoRa.beginPacket();
+      LoRa.print(mmsg + "," + cc + "," + vin_measure + "," + d1 + "," + d2 + "," + d3);
+      LoRa.endPacket();
+      Serial.println("message sent");
+
+      //delay(3000); // Let serial communication finish
+
+      EEPROM.put(EEPROM_ADDRESS1, timerValue);
+      Serial.println("----- ------");
+      wdt_enable(WDTO_8S);
+      WDTCSR |= (1 << WDIE);  // Enable interrupt mode
+    }
+
+    // Enter sleep mode
+    sleepNow();
   }
 
-  // Enter sleep mode
-  //sleepNow();
-  //}
-  delay(loopDelay * 1000);
+
+  //delay(loopDelay * 1000);
 }
+
+void turnOffADC() {
+  ADCSRA &= ~(1 << ADEN);  // Disable ADC
+}
+
+void turnOnADC() {
+  ADCSRA |= (1 << ADEN);  // Enable ADC
+}
+
+String readStringFromEEPROM(int address) {
+  int len;
+  EEPROM.get(address, len);  // Read string length
+  char data[len + 1];        // Create a char array to hold the string and null-terminator
+  for (int i = 0; i < len; i++) {
+    data[i] = EEPROM.read(address + sizeof(len) + i);  // Read string characters
+  }
+  data[len] = '\0';     // Ensure null-termination
+  return String(data);  // Convert char array to String
+}
+
 
 void sleepNow() {
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
