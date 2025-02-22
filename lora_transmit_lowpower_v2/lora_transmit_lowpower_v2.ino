@@ -129,20 +129,20 @@ void loop() {
       digitalWrite(sensorV, HIGH);
       delay(delaySensor * 1000);
 
-      Serial.print(", rs485 1");
+      //Serial.print(", rs485 1");
       d1 = readRS485Device(30, 0, 5);
       delay(2000);
 
-      Serial.print(", rs485 2");
+      //Serial.print(", rs485 2");
       d2 = readRS485Device(60, 0, 5);
       delay(2000);
-      Serial.print(", rs485 3");
+      //Serial.print(", rs485 3");
       d3 = readRS485Device(90, 0, 5);
 
       delay(500);
 
 
-      Serial.print(", Turn off Sensor");
+      //Serial.print(", Turn off Sensor");
       digitalWrite(sensorV, LOW);
 
       delay(1000);
