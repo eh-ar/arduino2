@@ -79,13 +79,18 @@ void setup() {
     while (1)
       ;
   }
+  delay(100);
   Serial.println("LoRa Transmitter");
-
+  LoRa.sleep();  // Put the LoRa module to sleep
+  delay(500);
   //EEPROM.put(EEPROM_ADDRESS, timerValue);
   EEPROM.get(EEPROM_ADDRESS1, timerValue);
   //EEPROM.put(EEPROM_ADDRESS, ID);
   ID = readStringFromEEPROM(EEPROM_ADDRESS2);
+  delay(100);
   mySerial.begin(4800);
+
+  delay(100);
   Serial.println(ID);
   //node.begin(50, mySerial);
   // Set up the watchdog timer to wake up every 8 seconds
@@ -93,7 +98,7 @@ void setup() {
 
 
 int repeat8 = 15;
-int delaySensor = 2;  ///sec
+int delaySensor = 5;  ///sec
 void loop() {
   //Serial.println("-----------------------");
 
@@ -112,28 +117,37 @@ void loop() {
       turnOnADC();
       float vin_m = analogRead(vin);
       vin_measure = vin_m * 0.00978;  //* (8/4);
-      turnOffADC();
+      delay(100);
+
 
       String d1 = "";
       String d2 = "";
       String d3 = "";
 
+      delay(100);
       Serial.print("Turn on Sensor");
       digitalWrite(sensorV, HIGH);
       delay(delaySensor * 1000);
 
       Serial.print(", rs485 1");
       d1 = readRS485Device(30, 0, 5);
-      delay(1000);
+      delay(2000);
+
+      Serial.print(", rs485 2");
       d2 = readRS485Device(60, 0, 5);
-      delay(1000);
+      delay(2000);
+      Serial.print(", rs485 3");
       d3 = readRS485Device(90, 0, 5);
-      delay(100);
+
+      delay(500);
 
 
       Serial.print(", Turn off Sensor");
       digitalWrite(sensorV, LOW);
 
+      delay(1000);
+      turnOffADC();
+      delay(100);
       Serial.println(", prepare message");
       String mmsg = String(ID) + "," + String(timerValue);
 
@@ -143,11 +157,14 @@ void loop() {
       Serial.println(d1 + " " + d2 + " " + d3);
 
 
+
       Serial.println("Sending message");
+      LoRa.begin(BAND);  // Wake up the LoRa module
       LoRa.beginPacket();
       LoRa.print(mmsg + "," + cc + "," + vin_measure + "," + d1 + "," + d2 + "," + d3);
       LoRa.endPacket();
       Serial.println("message sent");
+      LoRa.sleep();  // Put the LoRa module to sleep
 
       //delay(3000); // Let serial communication finish
 
@@ -195,6 +212,8 @@ void sleepNow() {
   interrupts();  // Enable interrupts
   sleep_cpu();   // Enter sleep mode
   // Disable sleep mode after wake up
+  //delay(10);
+  //Serial.println("Waking up");
   sleep_disable();
 }
 
