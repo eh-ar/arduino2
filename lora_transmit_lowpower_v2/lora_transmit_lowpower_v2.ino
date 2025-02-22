@@ -61,14 +61,17 @@ String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
 }
 
 void setup() {
+  Serial.begin(115200);
+  Serial.println("Setup");
+
   pinMode(NSS, OUTPUT);
   pinMode(NRESET, OUTPUT);
   pinMode(DIO0, INPUT);
   pinMode(vin, INPUT);
   pinMode(sensorV, OUTPUT);
 
-  digitalWrite(sensorV, LOW);
-  Serial.begin(115200);
+  //digitalWrite(sensorV, LOW);
+
   Serial.println("Starting Module");
   while (!Serial)
     ;
@@ -82,16 +85,16 @@ void setup() {
   delay(100);
   Serial.println("LoRa Transmitter");
   LoRa.sleep();  // Put the LoRa module to sleep
-  delay(500);
+  delay(1000);
   //EEPROM.put(EEPROM_ADDRESS, timerValue);
   EEPROM.get(EEPROM_ADDRESS1, timerValue);
   //EEPROM.put(EEPROM_ADDRESS, ID);
   ID = readStringFromEEPROM(EEPROM_ADDRESS2);
+  delay(500);
+  
+  Serial.println(ID);
   delay(100);
   mySerial.begin(4800);
-
-  delay(100);
-  Serial.println(ID);
   //node.begin(50, mySerial);
   // Set up the watchdog timer to wake up every 8 seconds
 }
@@ -110,11 +113,14 @@ void loop() {
 
     // Check if 8 wake-ups (1 minute) have passed
     if (wakeUpCounter >= repeat8) {
+      Serial.println("measure");
+      delay(1000);
       wakeUpCounter = 0;  // Reset wake-up counter
       timerValue += (8 * repeat8 + delaySensor);
       cc++;
       //Serial.println(" Vin");
       turnOnADC();
+      delay(100);
       float vin_m = analogRead(vin);
       vin_measure = vin_m * 0.00978;  //* (8/4);
       delay(100);
