@@ -21,19 +21,19 @@ String ID = "";
 #define Rx 2
 #define Tx 3
 
-
+SoftwareSerial mySerial(Rx, Tx);
 int vin = A0;
 int sensorV = A1;
 float vin_m;
 float vin_measure;
 
-SoftwareSerial mySerial(Rx, Tx);
+
 ModbusMaster node;
 
 volatile bool f_wdt = true;      // Flag for Watchdog Timer
 volatile int wakeUpCounter = 0;  // Counter for wake-ups
 
-int cc = 0;
+int cc = 1;
 static uint32_t i;
 uint8_t j, result;
 uint16_t data[5];
@@ -42,12 +42,17 @@ uint16_t val;
 
 int loopDelay = 20;  //seconds
 
+bool debugFlag = false;
+
 String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
+  mySerial.begin(4800);
+  delay(100);
+  Serial.print(", start reading");
   String d = ",,,,,";
   node.begin(deviceAddress, mySerial);  // Set the Modbus address and use the SoftwareSerial connection
   //Serial.println("Check RS485");
   result = node.readHoldingRegisters(st, n);
-
+  Serial.print(", parsing results");
   if (result == node.ku8MBSuccess) {
     val = node.getResponseBuffer(0);
     d = String(deviceAddress) + "," + String(val);
@@ -57,6 +62,8 @@ String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
       d = d + "," + String(val);
     }
   }
+  Serial.print(", data: " + d + " ");
+  mySerial.flush();
   return d;
 }
 
@@ -91,21 +98,26 @@ void setup() {
   //EEPROM.put(EEPROM_ADDRESS, ID);
   ID = readStringFromEEPROM(EEPROM_ADDRESS2);
   delay(500);
-  
+
   Serial.println(ID);
+  Serial.flush();
   delay(100);
-  mySerial.begin(4800);
+
   //node.begin(50, mySerial);
   // Set up the watchdog timer to wake up every 8 seconds
 }
 
 
 int repeat8 = 15;
+int sensorIDs[3] = { 30, 60, 90 };
+int sensorId = 0;
+int sensorCounter = 0;
 int delaySensor = 5;  ///sec
 void loop() {
   //Serial.println("-----------------------");
 
   if (f_wdt) {
+
     f_wdt = false;  // Clear the watchdog timer flag
 
     // Increment wake-up counter
@@ -113,13 +125,21 @@ void loop() {
 
     // Check if 8 wake-ups (1 minute) have passed
     if (wakeUpCounter >= repeat8) {
-      Serial.println("measure");
+      Serial.begin(115200);
+      Serial.println("Reading Cycle");
       delay(1000);
-      wakeUpCounter = 0;  // Reset wake-up counter
+      sensorId = sensorIDs[sensorCounter];
+      if (sensorCounter < 2) {
+        sensorCounter++;
+      } else {
+        wakeUpCounter = 0;  // Reset wake-up counter
+        sensorCounter = 0;  // Reset wake-up counter
+      }
+
       timerValue += (8 * repeat8 + delaySensor);
-      cc++;
+
       //Serial.println(" Vin");
-      turnOnADC();
+      //turnOnADC();
       delay(100);
       float vin_m = analogRead(vin);
       vin_measure = vin_m * 0.00978;  //* (8/4);
@@ -131,28 +151,31 @@ void loop() {
       String d3 = "";
 
       delay(100);
-      Serial.print("Turn on Sensor");
+      Serial.println("Turn on Sensor");
       digitalWrite(sensorV, HIGH);
       delay(delaySensor * 1000);
 
-      //Serial.print(", rs485 1");
-      d1 = readRS485Device(30, 0, 5);
-      delay(2000);
 
-      //Serial.print(", rs485 2");
+      Serial.print(", rs485 " + String(sensorId) + " ");
+      d1 = readRS485Device(sensorId, 0, 5);
+      Serial.println(", done");
+      /*
+      delay(5000);
+      Serial.print(", rs485 2");
       d2 = readRS485Device(60, 0, 5);
+      Serial.println(", done");
+      
       delay(2000);
-      //Serial.print(", rs485 3");
+      Serial.print(", rs485 3");
       d3 = readRS485Device(90, 0, 5);
-
-      delay(500);
-
-
-      //Serial.print(", Turn off Sensor");
+      
+*/
+      delay(20);
+      Serial.println(", Turn off Sensor");
       digitalWrite(sensorV, LOW);
 
-      delay(1000);
-      turnOffADC();
+      //delay(1000);
+      //turnOffADC();
       delay(100);
       Serial.println(", prepare message");
       String mmsg = String(ID) + "," + String(timerValue);
@@ -179,10 +202,16 @@ void loop() {
       wdt_enable(WDTO_8S);
       WDTCSR |= (1 << WDIE);  // Enable interrupt mode
       delay(100);
+      if(wakeUpCounter == 0){
+        cc++;
+      }
+      Serial.flush();
     }
+
 
     // Enter sleep mode
     sleepNow();
+    //delay(8000);
   }
 
 
