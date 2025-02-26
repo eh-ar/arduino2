@@ -200,7 +200,6 @@ void sendMessage(String loraMessage) {
   LoRa.sleep();  // Put the LoRa module to sleep
 }
 
-
 //----------------------------------------
 void turnOffADC() {
   ADCSRA &= ~(1 << ADEN);  // Disable ADC
@@ -209,7 +208,6 @@ void turnOffADC() {
 void turnOnADC() {
   ADCSRA |= (1 << ADEN);  // Enable ADC
 }
-
 //----------------------------------------
 String readStringFromEEPROM(int address) {
   int len;
