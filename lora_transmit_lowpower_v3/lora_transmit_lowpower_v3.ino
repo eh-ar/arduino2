@@ -86,8 +86,7 @@ void setup() {
   LoRa.setPins(NSS, NRESET, DIO0);
   if (!LoRa.begin(BAND)) {
     Serial.println("Starting LoRa failed!");
-    while (1)
-      ;
+    while (1) {};
   }
   delay(100);
   Serial.println("LoRa Transmitter");
