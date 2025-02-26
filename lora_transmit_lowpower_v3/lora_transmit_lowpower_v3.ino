@@ -27,7 +27,6 @@ int sensorV = A1;
 float vin_m;
 float vin_measure;
 
-
 ModbusMaster node;
 
 volatile bool f_wdt = true;      // Flag for Watchdog Timer
@@ -45,6 +44,7 @@ int loopDelay = 20;  //seconds
 
 bool debugFlag = false;
 
+//------------------------------------------
 String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
   mySerial.begin(4800);
   delay(100);
@@ -67,7 +67,6 @@ String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
   mySerial.flush();
   return d;
 }
-
 //-------------------------------
 void setup() {
   Serial.begin(115200);
