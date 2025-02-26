@@ -32,6 +32,7 @@ ModbusMaster node;
 
 volatile bool f_wdt = true;      // Flag for Watchdog Timer
 volatile int wakeUpCounter = 0;  // Counter for wake-ups
+volatile String message = "";
 
 int cc = 1;
 static uint32_t i;
@@ -67,6 +68,7 @@ String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
   return d;
 }
 
+//-------------------------------
 void setup() {
   Serial.begin(115200);
   Serial.println("Setup");
@@ -113,13 +115,13 @@ int sensorIDs[3] = { 30, 60, 90 };
 int sensorId = 0;
 int sensorCounter = 0;
 int delaySensor = 5;  ///sec
+
 void loop() {
   //Serial.println("-----------------------");
 
   if (f_wdt) {
 
     f_wdt = false;  // Clear the watchdog timer flag
-
     // Increment wake-up counter
     wakeUpCounter++;
 
@@ -143,12 +145,10 @@ void loop() {
       delay(100);
       float vin_m = analogRead(vin);
       vin_measure = vin_m * 0.00978;  //* (8/4);
+      Serial.println(", voltage: " + String(vin_measure));
       delay(100);
 
-
-      String d1 = "";
-      String d2 = "";
-      String d3 = "";
+      message = message + String(vin_measure);
 
       delay(100);
       Serial.println("Turn on Sensor");
@@ -157,67 +157,50 @@ void loop() {
 
 
       Serial.print(", rs485 " + String(sensorId) + " ");
-      d1 = readRS485Device(sensorId, 0, 5);
+      String d = readRS485Device(sensorId, 0, 5);
       Serial.println(", done");
-      /*
-      delay(5000);
-      Serial.print(", rs485 2");
-      d2 = readRS485Device(60, 0, 5);
-      Serial.println(", done");
-      
-      delay(2000);
-      Serial.print(", rs485 3");
-      d3 = readRS485Device(90, 0, 5);
-      
-*/
+
+      message = message + "," + d;
+
       delay(20);
       Serial.println(", Turn off Sensor");
       digitalWrite(sensorV, LOW);
 
-      //delay(1000);
       //turnOffADC();
       delay(100);
       Serial.println(", prepare message");
-      String mmsg = String(ID) + "," + String(timerValue);
-
-
-      Serial.print("message: " + mmsg + " " + cc);
-      Serial.println(", voltage: " + String(vin_measure));
-      Serial.println(d1 + " " + d2 + " " + d3);
-
-      //delay(3000); // Let serial communication finish
-
-      Serial.println("Sending message");
-      LoRa.begin(BAND);  // Wake up the LoRa module
-      LoRa.beginPacket();
-      LoRa.print(mmsg + "," + cc + "," + vin_measure + "," + d1 + "," + d2 + "," + d3);
-      LoRa.endPacket();
-      Serial.println("message sent");
-      LoRa.sleep();  // Put the LoRa module to sleep
+      message = message + "," + String(ID) + "," + String(timerValue) + "," + String(cc);
 
       EEPROM.put(EEPROM_ADDRESS1, timerValue);
       Serial.println("----- ------");
+
       wdt_enable(WDTO_8S);
       WDTCSR |= (1 << WDIE);  // Enable interrupt mode
       delay(100);
-      if (wakeUpCounter == 0) {
+
+      if (wakeUpCounter == 0) {  // all the sensors are read and the message is ready to be sent
+        sendMessage(message);
+        message = "";
         cc++;
       }
+
       Serial.flush();
     }
-
-
     // Enter sleep mode
     sleepNow();
     //delay(8000);
   }
-
-
-  //delay(loopDelay * 1000);
 }
 
-
-
+void sendMessage(String loraMessage) {
+  Serial.println("Sending message");
+  LoRa.begin(BAND);  // Wake up the LoRa module
+  LoRa.beginPacket();
+  LoRa.print(loraMessage);
+  LoRa.endPacket();
+  Serial.println("message sent");
+  LoRa.sleep();  // Put the LoRa module to sleep
+}
 
 
 //----------------------------------------
