@@ -141,10 +141,7 @@ void loop() {
       //Serial.println(" Vin");
       //turnOnADC();
       delay(100);
-      float vin_m = analogRead(vin);
-      vin_measure = vin_m * 0.00978;  //* (8/4);
-      Serial.println(", voltage: " + String(vin_measure));
-      delay(100);
+      vin_measure = readVoltage();
 
       message = message + String(vin_measure);
 
@@ -189,7 +186,17 @@ void loop() {
     //delay(8000);
   }
 }
+//---------------------
+float readVoltage() {
+  float vin;
+  float vin_m = analogRead(vin);
+  vin = vin_m * 0.00978;  //* (8/4);
+  Serial.println(", voltage: " + String(vin_measure));
+  delay(100);
+  return vin;
+}
 
+//--------------------------
 void sendMessage(String loraMessage) {
   Serial.println("Sending message");
   LoRa.begin(BAND);  // Wake up the LoRa module
