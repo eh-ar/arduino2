@@ -82,8 +82,7 @@ void setup() {
   //digitalWrite(sensorV, LOW);
 
   Serial.println("Starting Module");
-  while (!Serial)
-    ;
+  while (!Serial) {};
 
   LoRa.setPins(NSS, NRESET, DIO0);
   if (!LoRa.begin(BAND)) {
