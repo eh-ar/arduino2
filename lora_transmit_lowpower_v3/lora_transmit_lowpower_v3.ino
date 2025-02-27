@@ -40,14 +40,14 @@ uint16_t data[5];
 String d;
 uint16_t val;
 
-int loopDelay = 20;  //seconds
-
+int loopDelay = 20;        //seconds
+float commandDelay = 0.5;  //seonds
 bool debugFlag = false;
 
 //------------------------------------------
 String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
   mySerial.begin(4800);
-  delay(100);
+  delay(commandDelay * 1000);
   Serial.print(", start reading");
   String d = ",,,,,";
   node.begin(deviceAddress, mySerial);  // Set the Modbus address and use the SoftwareSerial connection
@@ -88,19 +88,19 @@ void setup() {
     Serial.println("Starting LoRa failed!");
     while (1) {};
   }
-  delay(100);
+  delay(commandDelay * 1000);
   Serial.println("LoRa Transmitter");
   LoRa.sleep();  // Put the LoRa module to sleep
-  delay(1000);
+  delay(50);
   //EEPROM.put(EEPROM_ADDRESS, timerValue);
   EEPROM.get(EEPROM_ADDRESS1, timerValue);
   //EEPROM.put(EEPROM_ADDRESS, ID);
   ID = readStringFromEEPROM(EEPROM_ADDRESS2);
-  delay(500);
+  delay(commandDelay * 1000);
 
   Serial.println(ID);
   Serial.flush();
-  delay(100);
+  delay(commandDelay * 1000);
 
   //node.begin(50, mySerial);
   // Set up the watchdog timer to wake up every 8 seconds
@@ -126,7 +126,8 @@ void loop() {
     if (wakeUpCounter >= repeat8) {
       Serial.begin(115200);
       Serial.println("Reading Cycle");
-      delay(1000);
+      delay(commandDelay * 1000);
+
       sensorId = sensorIDs[sensorCounter];
       if (sensorCounter < 2) {
         sensorCounter++;
@@ -139,16 +140,15 @@ void loop() {
 
       //Serial.println(" Vin");
       //turnOnADC();
-      delay(100);
-      vin_measure = readVoltage();
+      delay(commandDelay * 1000);
 
+      vin_measure = readVoltage();
       message = message + String(vin_measure);
 
-      delay(100);
+      delay(commandDelay * 1000);
       Serial.println("Turn on Sensor");
       digitalWrite(sensorV, HIGH);
       delay(delaySensor * 1000);
-
 
       Serial.print(", rs485 " + String(sensorId) + " ");
       String d = readRS485Device(sensorId, 0, 5);
@@ -156,12 +156,12 @@ void loop() {
 
       message = message + "," + d;
 
-      delay(20);
+      delay(commandDelay * 1000);
       Serial.println(", Turn off Sensor");
       digitalWrite(sensorV, LOW);
 
       //turnOffADC();
-      delay(100);
+      delay(commandDelay * 1000);
       Serial.println(", prepare message");
       message = message + "," + String(ID) + "," + String(timerValue) + "," + String(cc);
 
@@ -170,11 +170,11 @@ void loop() {
 
       wdt_enable(WDTO_8S);
       WDTCSR |= (1 << WDIE);  // Enable interrupt mode
-      delay(100);
+      delay(commandDelay * 1000);
 
       if (wakeUpCounter == 0) {  // all the sensors are read and the message is ready to be sent
         sendMessage(message);
-        message = "";
+        message = ID;
         cc++;
       }
 
@@ -190,8 +190,8 @@ float readVoltage() {
   float vin;
   float vin_m = analogRead(vin);
   vin = vin_m * 0.00978;  //* (8/4);
+  delay(10);
   Serial.println(", voltage: " + String(vin_measure));
-  delay(100);
   return vin;
 }
 
