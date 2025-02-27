@@ -31,7 +31,7 @@ ModbusMaster node;
 
 volatile bool f_wdt = true;      // Flag for Watchdog Timer
 volatile int wakeUpCounter = 0;  // Counter for wake-ups
-volatile String message = "";
+String message = "";
 
 int cc = 1;
 static uint32_t i;
@@ -90,12 +90,14 @@ void setup() {
   }
   delay(commandDelay * 1000);
   Serial.println("LoRa Transmitter");
-  LoRa.sleep();  // Put the LoRa module to sleep
+  sendMessage("Lora Start");
+  //LoRa.sleep();  // Put the LoRa module to sleep
   delay(50);
   //EEPROM.put(EEPROM_ADDRESS, timerValue);
   EEPROM.get(EEPROM_ADDRESS1, timerValue);
   //EEPROM.put(EEPROM_ADDRESS, ID);
   ID = readStringFromEEPROM(EEPROM_ADDRESS2);
+  message = ID;
   delay(commandDelay * 1000);
 
   Serial.println(ID);
@@ -143,7 +145,7 @@ void loop() {
       delay(commandDelay * 1000);
 
       vin_measure = readVoltage();
-      message = message + String(vin_measure);
+      message = message + ","+ String(vin_measure);
 
       delay(commandDelay * 1000);
       Serial.println("Turn on Sensor");
@@ -163,8 +165,8 @@ void loop() {
       //turnOffADC();
       delay(commandDelay * 1000);
       Serial.println(", prepare message");
-      message = message + "," + String(ID) + "," + String(timerValue) + "," + String(cc);
-
+      message = message + "," + String(timerValue) + "," + String(cc);
+      Serial.println("msg: " + message);
       EEPROM.put(EEPROM_ADDRESS1, timerValue);
       Serial.println("----- ------");
 

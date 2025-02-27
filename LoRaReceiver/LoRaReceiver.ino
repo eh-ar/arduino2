@@ -42,8 +42,13 @@ int16_t rssi, rxSize;
 
 bool lora_idle = true;
 
+// Define timing variables
+unsigned long previousMillis = 0;
+const unsigned long interval = 1000;  // 1 second
+int secondsCounter = 0;
 void setup() {
   Serial.begin(9600);
+  Serial.println("receiver start");
   txNumber = 0;
   rssi = 0;
 
@@ -73,7 +78,8 @@ void setup() {
   //pinMode(2, INPUT);
   //pinMode(GPIO1, INPUT);
   //pinMode(4, INPUT);
-  
+   unsigned long currentMillis = millis();
+   previousMillis = currentMillis;
 }
 
 int c = 0;
@@ -86,7 +92,9 @@ void loop() {
     Serial.print("Current IP: ");
     Serial.println(Ethernet.localIP());
     */
-  delay(2000);
+
+   
+  delay(5);
 
 
 /*
@@ -109,6 +117,10 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
   memcpy(rxpacket, payload, min(size, BUFFER_SIZE - 1));
   rxpacket[min(size, BUFFER_SIZE - 1)] = '\0';
 
+
+  unsigned long currentMillis = millis();
+  Serial.println("Seconds elapsed: " + String((currentMillis - previousMillis)/1000));
+  previousMillis = currentMillis;  
   Serial.printf("[OnRxDone] Received: \"%s\" | RSSI: %d | Length: %d\r\n", rxpacket, rssi, rxSize);
   
 

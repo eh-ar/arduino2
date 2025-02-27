@@ -47,29 +47,32 @@ bool debugFlag = false;
 String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
   mySerial.begin(4800);
   delay(100);
-  Serial.print(", start reading");
-  String d = ",,,,,";
+  if (debugFlag) Serial.print(", start reading");
+  String d = String(deviceAddress) + ",,,,,";
   node.begin(deviceAddress, mySerial);  // Set the Modbus address and use the SoftwareSerial connection
-  //Serial.println("Check RS485");
+  //if (debugFlag) Serial.println("Check RS485");
   result = node.readHoldingRegisters(st, n);
-  Serial.print(", parsing results");
+  if (debugFlag) Serial.print(", parsing results");
   if (result == node.ku8MBSuccess) {
     val = node.getResponseBuffer(0);
     d = String(deviceAddress) + "," + String(val);
     for (j = 1; j < n; j++) {
       val = node.getResponseBuffer(j);
-      //Serial.println(val);
+      //if (debugFlag) Serial.println(val);
       d = d + "," + String(val);
     }
   }
-  Serial.print(", data: " + d + " ");
+  if (debugFlag) Serial.print(", data: " + d + " ");
   mySerial.flush();
   return d;
 }
+//------------------------------------------------------
+
+bool debugFlag = false;
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("Setup");
+  if (debugFlag) Serial.println("Setup");
 
   pinMode(NSS, OUTPUT);
   pinMode(NRESET, OUTPUT);
@@ -79,18 +82,18 @@ void setup() {
 
   //digitalWrite(sensorV, LOW);
 
-  Serial.println("Starting Module");
+  if (debugFlag) Serial.println("Starting Module");
   while (!Serial)
     ;
 
   LoRa.setPins(NSS, NRESET, DIO0);
   if (!LoRa.begin(BAND)) {
-    Serial.println("Starting LoRa failed!");
+    if (debugFlag) Serial.println("Starting LoRa failed!");
     while (1)
       ;
   }
   delay(100);
-  Serial.println("LoRa Transmitter");
+  if (debugFlag) Serial.println("LoRa Transmitter");
   LoRa.sleep();  // Put the LoRa module to sleep
   delay(1000);
   //EEPROM.put(EEPROM_ADDRESS, timerValue);
@@ -99,7 +102,7 @@ void setup() {
   ID = readStringFromEEPROM(EEPROM_ADDRESS2);
   delay(500);
 
-  Serial.println(ID);
+  if (debugFlag) Serial.println(ID);
   Serial.flush();
   delay(100);
 
@@ -114,7 +117,7 @@ int sensorId = 0;
 int sensorCounter = 0;
 int delaySensor = 5;  ///sec
 void loop() {
-  //Serial.println("-----------------------");
+  //if (debugFlag) Serial.println("-----------------------");
 
   if (f_wdt) {
 
@@ -126,19 +129,21 @@ void loop() {
     // Check if 8 wake-ups (1 minute) have passed
     if (wakeUpCounter >= repeat8) {
       Serial.begin(115200);
-      Serial.println("Reading Cycle");
+      if (debugFlag) Serial.println("Reading Cycle");
       delay(1000);
       sensorId = sensorIDs[sensorCounter];
       if (sensorCounter < 2) {
         sensorCounter++;
+        timerValue += (8 * 1 + delaySensor);
       } else {
         wakeUpCounter = 0;  // Reset wake-up counter
         sensorCounter = 0;  // Reset wake-up counter
+        timerValue += (8 * 1 + delaySensor);
       }
 
-      timerValue += (8 * repeat8 + delaySensor);
 
-      //Serial.println(" Vin");
+
+      //if (debugFlag) Serial.println(" Vin");
       //turnOnADC();
       delay(100);
       float vin_m = analogRead(vin);
@@ -151,57 +156,62 @@ void loop() {
       String d3 = "";
 
       delay(100);
-      Serial.println("Turn on Sensor");
+      if (debugFlag) Serial.println("Turn on Sensor");
       digitalWrite(sensorV, HIGH);
       delay(delaySensor * 1000);
 
 
-      Serial.print(", rs485 " + String(sensorId) + " ");
+      if (debugFlag) Serial.print(", rs485 " + String(sensorId) + " ");
       d1 = readRS485Device(sensorId, 0, 5);
-      Serial.println(", done");
+      if (debugFlag) Serial.println(", done");
       /*
       delay(5000);
-      Serial.print(", rs485 2");
+      if (debugFlag) Serial.print(", rs485 2");
       d2 = readRS485Device(60, 0, 5);
-      Serial.println(", done");
+      if (debugFlag) Serial.println(", done");
       
       delay(2000);
-      Serial.print(", rs485 3");
+      if (debugFlag) Serial.print(", rs485 3");
       d3 = readRS485Device(90, 0, 5);
       
 */
       delay(20);
-      Serial.println(", Turn off Sensor");
+      if (debugFlag) Serial.println(", Turn off Sensor");
       digitalWrite(sensorV, LOW);
 
       //delay(1000);
       //turnOffADC();
       delay(100);
-      Serial.println(", prepare message");
+      if (debugFlag) Serial.println(", prepare message");
       String mmsg = String(ID) + "," + String(timerValue);
 
 
-      Serial.print("message: " + mmsg + " " + cc);
-      Serial.println(", voltage: " + String(vin_measure));
-      Serial.println(d1 + " " + d2 + " " + d3);
+      if (debugFlag) Serial.print("message: " + mmsg + " " + cc);
+      if (debugFlag) Serial.println(", voltage: " + String(vin_measure));
+      if (debugFlag) Serial.println(d1 + " " + d2 + " " + d3);
 
       //delay(3000); // Let serial communication finish
 
-      Serial.println("Sending message");
+      if (debugFlag) Serial.println("Sending message");
       LoRa.begin(BAND);  // Wake up the LoRa module
       LoRa.beginPacket();
-      LoRa.print(mmsg + "," + cc + "," + vin_measure + "," + d1 + "," + d2 + "," + d3);
+      LoRa.print(mmsg + "," + cc + "," + vin_measure + "," + d1);
       LoRa.endPacket();
-      Serial.println("message sent");
+      if (debugFlag) Serial.println("message sent");
       LoRa.sleep();  // Put the LoRa module to sleep
 
       EEPROM.put(EEPROM_ADDRESS1, timerValue);
-      Serial.println("----- ------");
-      wdt_enable(WDTO_8S);
-      WDTCSR |= (1 << WDIE);  // Enable interrupt mode
+      if (debugFlag) Serial.println("----- ------");
+
       delay(100);
       if (wakeUpCounter == 0) {
+        timerValue += (8 * repeat8 + delaySensor);
         cc++;
+        wdt_enable(WDTO_8S);
+        WDTCSR |= (1 << WDIE);  // Enable interrupt mode
+      } else {
+        wdt_enable(WDTO_8S);
+        WDTCSR |= (1 << WDIE);  // Enable interrupt mode
       }
       Serial.flush();
     }
@@ -252,7 +262,7 @@ void sleepNow() {
   sleep_cpu();   // Enter sleep mode
   // Disable sleep mode after wake up
   //delay(10);
-  //Serial.println("Waking up");
+  //if (debugFlag) Serial.println("Waking up");
   sleep_disable();
 }
 //------------------------------------------

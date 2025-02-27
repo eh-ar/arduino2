@@ -3,6 +3,7 @@
 // Address location in EEPROM
 const int stringAddress = 0;
 const int intAddress = 50;
+unsigned long timer  = 0;
 
 
 void writeStringToEEPROM(int address, const String &str) {
@@ -29,13 +30,15 @@ void setup() {
   Serial.begin(115200);
 
   // Write a String to EEPROM
-  String myString = "FASO00002";
+  String myString = "FASO00008";
   writeStringToEEPROM(stringAddress, myString);
   Serial.println("String written to EEPROM");
-  EEPROM.put(    intAddress, 0);
+  EEPROM.put( intAddress, timer);
   // Read the String from EEPROM
   String storedString = readStringFromEEPROM(stringAddress);
   Serial.println("Stored String: " + storedString);
+  EEPROM.get( intAddress,timer);
+  Serial.println("Stored String: " + String(timer));
 }
 
 void loop() {
