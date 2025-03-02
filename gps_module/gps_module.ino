@@ -10,6 +10,7 @@ void setup() {
   gpsSerial.begin(115200); // Set to 115200 baud rate
 
   Serial.println("Type a command and press Enter to send it to the GPS module:");
+  gpsSerial.println("tesst"); // Set to 115200 baud rate
   //sendGPSCommand("gpgga 1");
   delay(1000);
 }
@@ -18,13 +19,14 @@ void loop() {
   // Check if there's data from the Serial Monitor
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
+    
     sendGPSCommand(command.c_str());
   }
 
   // Check if data is available from the GPS module
   if (gpsSerial.available()) {
      gpsData = gpsSerial.readStringUntil('\n');
-     //Serial.println(gpsData);
+     Serial.println(gpsData);
     if (gpsData.startsWith("$GNGGA")) {
       parseGPGGA(gpsData);
     } else{

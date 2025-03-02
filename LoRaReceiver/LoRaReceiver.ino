@@ -42,6 +42,8 @@ int16_t rssi, rxSize;
 
 bool lora_idle = true;
 
+String IDs[8] = { "FASO00001", "FASO00002", "FASO00003", "FASO00004", "FASO00005", "FASO00006", "FASO00007", "FASO00008" };
+unsigned long premilis[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 // Define timing variables
 unsigned long previousMillis = 0;
 const unsigned long interval = 1000;  // 1 second
@@ -78,8 +80,10 @@ void setup() {
   //pinMode(2, INPUT);
   //pinMode(GPIO1, INPUT);
   //pinMode(4, INPUT);
-   unsigned long currentMillis = millis();
-   previousMillis = currentMillis;
+  unsigned long currentMillis = millis();
+  for (int ii = 0; ii < 8; ii++) {
+    premilis[ii] = currentMillis;
+  }
 }
 
 int c = 0;
@@ -93,11 +97,11 @@ void loop() {
     Serial.println(Ethernet.localIP());
     */
 
-   
+
   delay(5);
 
 
-/*
+  /*
 
 Serial.println("----");
   Serial.println(analogRead(2));
@@ -117,16 +121,25 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
   memcpy(rxpacket, payload, min(size, BUFFER_SIZE - 1));
   rxpacket[min(size, BUFFER_SIZE - 1)] = '\0';
 
-
   unsigned long currentMillis = millis();
-  Serial.println("Seconds elapsed: " + String((currentMillis - previousMillis)/1000));
-  previousMillis = currentMillis;  
-  Serial.printf("[OnRxDone] Received: \"%s\" | RSSI: %d | Length: %d\r\n", rxpacket, rssi, rxSize);
-  
+  String ID = getID(String(rxpacket));
+  String vin = getVoltage(String(rxpacket));
+  //Serial.println(ID);
+  int sec = 0;
+  for (int ii = 0; ii < 8; ii++) {
+    if (IDs[ii] == ID) {
+      sec = (currentMillis - premilis[ii]) / 1000;
+      premilis[ii] = currentMillis;
+    }
+  }
 
-  mySerial.printf("%s%d\n", rxpacket,rssi);  // Send the received data to the hardware serial port
+  Serial.println("ID: " + ID + " t: " + String(sec) + " s , vin: " + vin );
+  Serial.printf("[OnRxDone] Received: \"%s\" | RSSI: %d | Length: %d\r\n", rxpacket, rssi, rxSize);
+
+
+  mySerial.printf("%s%d\n", rxpacket, rssi);  // Send the received data to the hardware serial port
   //mySerial.printf("%s", "\n");
-  
+
   memset(rxpacket, 0, sizeof(rxpacket));
 
   //Serial.println("[OnRxDone] Restarting Radio...");
@@ -155,4 +168,19 @@ void OnTxTimeout(void) {
   Radio.Rx(0);
   Serial.println("Entering RX mode again...");
   return;
+}
+
+String getID(String string) {
+  int ind1 = string.indexOf(',');
+  return string.substring(0, ind1);
+}
+
+
+
+String getVoltage(String string) {
+  int ind1 = string.indexOf(',');
+  int ind2 = string.indexOf(',', ind1+1);
+  int ind3 = string.indexOf(',', ind2+1);
+  int ind4 = string.indexOf(',', ind3+1);
+  return string.substring(ind3+1, ind4+1);
 }
