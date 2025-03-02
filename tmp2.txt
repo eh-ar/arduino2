@@ -1,0 +1,35 @@
+#include <SPI.h>
+#include <LoRa.h>
+
+#define BAND 433E6
+#define NSS 10
+#define NRESET 5
+#define DIO0 4
+
+void setup() {
+  Serial.begin(115200);
+  LoRa.setPins(NSS, NRESET, DIO0);
+  if (!LoRa.begin(BAND)) {
+    Serial.println("Starting LoRa failed!");
+    while (1) {};
+  }
+}
+
+void loop() {
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    String received = "";
+    while (LoRa.available()) {
+      received += (char)LoRa.read();
+    }
+    Serial.println("Received: " + received);
+
+    if (received.endsWith(",ACK_REQ")) {
+      Serial.println("Sending ACK");
+      LoRa.beginPacket();
+      LoRa.print("ACK");
+      LoRa.endPacket();
+    }
+  }
+  delay(10);
+}
