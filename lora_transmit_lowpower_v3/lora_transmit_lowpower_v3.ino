@@ -80,6 +80,11 @@ void setup() {
 
   //digitalWrite(sensorV, LOW);
 
+  //EEPROM.put(EEPROM_ADDRESS, timerValue);
+  EEPROM.get(EEPROM_ADDRESS1, timerValue);
+  //EEPROM.put(EEPROM_ADDRESS, ID);
+  ID = readStringFromEEPROM(EEPROM_ADDRESS2);
+
   Serial.println("Starting Module");
   while (!Serial) {};
 
@@ -90,13 +95,10 @@ void setup() {
   }
   delay(commandDelay * 1000);
   Serial.println("LoRa Transmitter");
-  sendMessage("Lora Start");
+  sendMessage("Station: " + ID);
   //LoRa.sleep();  // Put the LoRa module to sleep
   delay(50);
-  //EEPROM.put(EEPROM_ADDRESS, timerValue);
-  EEPROM.get(EEPROM_ADDRESS1, timerValue);
-  //EEPROM.put(EEPROM_ADDRESS, ID);
-  ID = readStringFromEEPROM(EEPROM_ADDRESS2);
+  
   message = ID;
   delay(commandDelay * 1000);
 
@@ -127,7 +129,7 @@ void loop() {
     // Check if 8 wake-ups (1 minute) have passed
     if (wakeUpCounter >= repeat8) {
       Serial.begin(115200);
-      Serial.println("Reading Cycle");
+      Serial.println("Reading Cycle " +  String(sensorCounter + 1));
       delay(commandDelay * 1000);
 
       sensorId = sensorIDs[sensorCounter];
@@ -140,6 +142,8 @@ void loop() {
 
       timerValue += (8 * repeat8 + delaySensor);
 
+      message = message + "," + String(timerValue) + "," + String(cc);
+      
       //Serial.println(" Vin");
       //turnOnADC();
       delay(commandDelay * 1000);
@@ -164,12 +168,10 @@ void loop() {
 
       //turnOffADC();
       delay(commandDelay * 1000);
-      Serial.println(", prepare message");
-      message = message + "," + String(timerValue) + "," + String(cc);
+      
       Serial.println("msg: " + message);
       EEPROM.put(EEPROM_ADDRESS1, timerValue);
       
-
       wdt_enable(WDTO_8S);
       WDTCSR |= (1 << WDIE);  // Enable interrupt mode
       delay(commandDelay * 1000);
@@ -178,6 +180,7 @@ void loop() {
         sendMessage(message);
         message = ID;
         cc++;
+        Serial.println("-----  SLEEP  ------");
       }
 
       Serial.flush();
@@ -193,7 +196,7 @@ float readVoltage() {
   float vin_m = analogRead(vin);
   vin = vin_m * 0.00978;  //* (8/4);
   delay(10);
-  Serial.println(", voltage: " + String(vin_measure));
+  Serial.println(", voltage: " + String(vin));
   return vin;
 }
 
