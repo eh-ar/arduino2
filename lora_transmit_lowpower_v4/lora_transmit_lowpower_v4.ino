@@ -90,7 +90,7 @@ void setup() {
   }
   delay(commandDelay * 1000);
   Serial.println("LoRa Transmitter");
-  sendMessage("Lora Start");
+  //sendMessage("Lora Start");
   //LoRa.sleep();  // Put the LoRa module to sleep
   delay(50);
   //EEPROM.put(EEPROM_ADDRESS, timerValue);
@@ -168,7 +168,6 @@ void loop() {
       message = message + "," + String(timerValue) + "," + String(cc);
       Serial.println("msg: " + message);
       EEPROM.put(EEPROM_ADDRESS1, timerValue);
-      Serial.println("----- ------");
 
       wdt_enable(WDTO_8S);
       WDTCSR |= (1 << WDIE);  // Enable interrupt mode
@@ -176,6 +175,7 @@ void loop() {
 
       if (wakeUpCounter == 0) {  // all the sensors are read and the message is ready to be sent
         sendMessage(message);
+        //sendMessageWithAck(message);
         
         message = ID;
         cc++;
@@ -184,6 +184,7 @@ void loop() {
       Serial.flush();
     }
     // Enter sleep mode
+    Serial.println("----- sleep  -----");
     sleepNow();
     //delay(8000);
   }
@@ -209,6 +210,45 @@ void sendMessage(String loraMessage) {
   LoRa.sleep();  // Put the LoRa module to sleep
 }
 
+//----------------------------------
+unsigned long ackTimeout = 5000; // 5 seconds timeout for ACK
+unsigned long sendTime;
+bool ackReceived = false;
+
+void sendMessageWithAck(String message) {
+  Serial.println("Sending message with ACK request: " + message);
+  LoRa.begin(BAND);
+  LoRa.beginPacket();
+  LoRa.print(message + ",ACK_REQ"); // Append an ACK request flag
+  LoRa.endPacket();
+  LoRa.sleep();
+
+  sendTime = millis();
+  ackReceived = false;
+
+  Serial.println("wait for Ack");
+  while (millis() - sendTime < ackTimeout) {
+    if (LoRa.parsePacket()) {
+      String received = "";
+      while (LoRa.available()) {
+        received += (char)LoRa.read();
+      }
+      if (String(received) == ID) {
+        Serial.println("ACK received!");
+        ackReceived = true;
+        break;
+      }
+    }
+    delay(10); // Small delay to avoid busy-waiting
+  }
+
+  if (ackReceived) {
+    Serial.println("Transmission successful!");
+  } else {
+    Serial.println("ACK timeout or not received. Resend or handle failure.");
+    // Implement resend logic here if needed
+  }
+}
 //----------------------------------------
 void turnOffADC() {
   ADCSRA &= ~(1 << ADEN);  // Disable ADC

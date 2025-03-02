@@ -133,12 +133,18 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
     }
   }
 
-  Serial.println("ID: " + ID + " t: " + String(sec) + " s , vin: " + vin );
+  Serial.println("ID: " + ID + " t: " + String(sec) + " s , vin: " + vin);
   Serial.printf("[OnRxDone] Received: \"%s\" | RSSI: %d | Length: %d\r\n", rxpacket, rssi, rxSize);
 
 
   mySerial.printf("%s%d\n", rxpacket, rssi);  // Send the received data to the hardware serial port
   //mySerial.printf("%s", "\n");
+  if (rxpacket.endsWith(",ACK_REQ")) {
+    Serial.println("Sending ACK");
+    LoRa.beginPacket();
+    LoRa.print(ID);
+    LoRa.endPacket();
+  }
 
   memset(rxpacket, 0, sizeof(rxpacket));
 
@@ -179,8 +185,8 @@ String getID(String string) {
 
 String getVoltage(String string) {
   int ind1 = string.indexOf(',');
-  int ind2 = string.indexOf(',', ind1+1);
-  int ind3 = string.indexOf(',', ind2+1);
-  int ind4 = string.indexOf(',', ind3+1);
-  return string.substring(ind3+1, ind4+1);
+  int ind2 = string.indexOf(',', ind1 + 1);
+  int ind3 = string.indexOf(',', ind2 + 1);
+  int ind4 = string.indexOf(',', ind3 + 1);
+  return string.substring(ind3 + 1, ind4 + 1);
 }

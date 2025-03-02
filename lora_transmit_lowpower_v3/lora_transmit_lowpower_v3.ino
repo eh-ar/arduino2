@@ -168,7 +168,7 @@ void loop() {
       message = message + "," + String(timerValue) + "," + String(cc);
       Serial.println("msg: " + message);
       EEPROM.put(EEPROM_ADDRESS1, timerValue);
-      Serial.println("----- ------");
+      
 
       wdt_enable(WDTO_8S);
       WDTCSR |= (1 << WDIE);  // Enable interrupt mode
