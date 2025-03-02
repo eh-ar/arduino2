@@ -1,0 +1,60 @@
+#include <SPI.h>
+#include <LoRa.h>
+
+#define BAND 433E6
+#define NSS 10
+#define NRESET 5
+#define DIO0 4
+
+unsigned long ackTimeout = 5000; // 5 seconds timeout for ACK
+unsigned long sendTime;
+bool ackReceived = false;
+
+void sendMessageWithAck(String message) {
+  Serial.println("Sending message with ACK request: " + message);
+  LoRa.begin(BAND);
+  LoRa.beginPacket();
+  LoRa.print(message + ",ACK_REQ"); // Append an ACK request flag
+  LoRa.endPacket();
+  LoRa.sleep();
+
+  sendTime = millis();
+  ackReceived = false;
+
+  while (millis() - sendTime < ackTimeout) {
+    if (LoRa.parsePacket()) {
+      String received = "";
+      while (LoRa.available()) {
+        received += (char)LoRa.read();
+      }
+      if (received == "ACK") {
+        Serial.println("ACK received!");
+        ackReceived = true;
+        break;
+      }
+    }
+    delay(10); // Small delay to avoid busy-waiting
+  }
+
+  if (ackReceived) {
+    Serial.println("Transmission successful!");
+  } else {
+    Serial.println("ACK timeout or not received. Resend or handle failure.");
+    // Implement resend logic here if needed
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  LoRa.setPins(NSS, NRESET, DIO0);
+  if (!LoRa.begin(BAND)) {
+    Serial.println("Starting LoRa failed!");
+    while (1) {};
+  }
+}
+
+void loop() {
+  sendMessageWithAck("Hello, world!");
+  delay(10000); // Send message every 10 seconds (example)
+}
+
