@@ -34,7 +34,7 @@ void setup() {
   Serial.begin(115200);
   Serial2.begin(115200);
   //pinMode(pin, OUTPUT);
-  mySerial.begin(9600);
+  mySerial.begin(19200);
   delay(10);
 
   // Set GPIO0 Boot button as input
@@ -72,6 +72,8 @@ void setup() {
         Serial.println("[WiFi] WiFi is connected!");
         Serial.print("[WiFi] IP address: ");
         Serial.println(WiFi.localIP());
+        
+
         return;
         break;
       default:
@@ -91,7 +93,6 @@ void setup() {
     } else {
       numberOfTries--;
     }
-    
   }
 }
 
@@ -103,6 +104,7 @@ void sendDataToAPI(String data) {
     http.addHeader("Content-Type", "application/json");
 
     int httpResponseCode = http.POST(data);
+    delay(500);
     if (httpResponseCode > 0) {
       String response = http.getString();
       Serial.println("[HTTP] Response: " + response);
@@ -116,10 +118,10 @@ void sendDataToAPI(String data) {
 }
 int cc = 0;
 void loop() {
- 
- //Serial.println("Current time: ");
- //Serial.println();
-  
+
+  //Serial.println("Current time: ");
+  //Serial.println();
+
   if (mySerial.available() > 0) {
     timeClient.update();
     cc++;
@@ -131,7 +133,7 @@ void loop() {
     Serial.println("timeStmp: " + String(timeClient.getEpochTime()));
     StaticJsonDocument<200> jsonDoc;
     jsonDoc["id"] = cc;
-    jsonDoc["message"] = String(timeClient.getEpochTime()) + ":" + data ;
+    jsonDoc["message"] = String(timeClient.getEpochTime()) + ":" + data;
 
     // Convert JSON object to a string
     String jsonString;

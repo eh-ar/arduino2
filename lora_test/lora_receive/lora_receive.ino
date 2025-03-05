@@ -31,6 +31,7 @@ void loop() {
   // Try to parse a packet
   int packetSize = LoRa.parsePacket();
 
+
   if (packetSize > 0) {
     // Received a packet
     String receivedMessage = "";
@@ -39,9 +40,9 @@ void loop() {
       char c = LoRa.read();
       receivedMessage += c;
     }
-
+    int rssi = (LoRa.packetRssi());
     Serial.print("Received: ");
-    Serial.println(receivedMessage);
+    Serial.println(receivedMessage + "- rssi: " + rssi);
     Serial.println("send to OPI: ");
     mySerial.println(receivedMessage);
     //String dataToSend = receivedMessage;
@@ -51,6 +52,5 @@ void loop() {
     //Wire.beginTransmission(8);  // Address of the slave
     //Wire.write(charArray);      // Send the character array
     //Wire.endTransmission();
-   
   }
 }

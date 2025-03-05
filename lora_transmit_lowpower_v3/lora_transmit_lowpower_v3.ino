@@ -22,9 +22,10 @@ String ID = "";
 #define Tx 3
 
 SoftwareSerial mySerial(Rx, Tx);
-int vin = A0;
+int vin_pin = A0;
 int sensorV = A1;
 float vin_m;
+float vin;
 float vin_measure;
 
 ModbusMaster node;
@@ -67,15 +68,45 @@ String readRS485Device(uint8_t deviceAddress, uint8_t st, uint8_t n) {
   mySerial.flush();
   return d;
 }
+//------------------------------
+void setOutput() {
+  pinMode(A3, OUTPUT);
+  pinMode(A4, OUTPUT);
+  pinMode(A5, OUTPUT);
+  pinMode(A6, OUTPUT);
+  pinMode(A7, OUTPUT);
+  digitalWrite(A3, LOW);
+  digitalWrite(A4, LOW);
+  digitalWrite(A5, LOW);
+  digitalWrite(A6, LOW);
+  digitalWrite(A7, LOW);
+
+  pinMode(SDA, INPUT);
+  pinMode(SCL, INPUT);
+  digitalWrite(SDA, LOW);
+  digitalWrite(SCL, LOW);
+
+  pinMode(6, OUTPUT);
+  pinMode(7, OUTPUT);
+  pinMode(8, OUTPUT);
+  pinMode(9, OUTPUT);
+  digitalWrite(6, LOW);
+  digitalWrite(7, LOW);
+  digitalWrite(8, LOW);
+  digitalWrite(9, LOW);
+}
+
 //-------------------------------
 void setup() {
   Serial.begin(115200);
   Serial.println("Setup");
 
+  setOutput();
+
   pinMode(NSS, OUTPUT);
   pinMode(NRESET, OUTPUT);
   pinMode(DIO0, INPUT);
-  pinMode(vin, INPUT);
+  pinMode(vin_pin, INPUT);
   pinMode(sensorV, OUTPUT);
 
   //digitalWrite(sensorV, LOW);
@@ -95,10 +126,10 @@ void setup() {
   }
   delay(commandDelay * 1000);
   Serial.println("LoRa Transmitter");
-  sendMessage("Station: " + ID);
+  sendMessage("Station: " + ID + " v: " + String(readVoltage()));
   //LoRa.sleep();  // Put the LoRa module to sleep
   delay(50);
-  
+
   message = ID;
   delay(commandDelay * 1000);
 
@@ -111,7 +142,7 @@ void setup() {
 }
 
 //-------------------------------------------
-int repeat8 = 15;
+int repeat8 = 15*5;
 int sensorIDs[3] = { 30, 60, 90 };
 int sensorId = 0;
 int sensorCounter = 0;
@@ -129,7 +160,7 @@ void loop() {
     // Check if 8 wake-ups (1 minute) have passed
     if (wakeUpCounter >= repeat8) {
       Serial.begin(115200);
-      Serial.println("Reading Cycle " +  String(sensorCounter + 1));
+      Serial.println("Reading Cycle " + String(sensorCounter + 1));
       delay(commandDelay * 1000);
 
       sensorId = sensorIDs[sensorCounter];
@@ -142,14 +173,15 @@ void loop() {
 
       timerValue += (8 * repeat8 + delaySensor);
 
-      message = message + "," + String(timerValue) + "," + String(cc);
-      
+      message = message + ";;" + String(timerValue) + "," + String(cc);
+
       //Serial.println(" Vin");
-      //turnOnADC();
+      turnOnADC();
       delay(commandDelay * 1000);
 
       vin_measure = readVoltage();
-      message = message + ","+ String(vin_measure);
+      message = message + "," + String(vin_measure);
+      turnOffADC();
 
       delay(commandDelay * 1000);
       Serial.println("Turn on Sensor");
@@ -166,12 +198,12 @@ void loop() {
       Serial.println(", Turn off Sensor");
       digitalWrite(sensorV, LOW);
 
-      //turnOffADC();
-      delay(commandDelay * 1000);
       
+      delay(commandDelay * 1000);
+
       Serial.println("msg: " + message);
       EEPROM.put(EEPROM_ADDRESS1, timerValue);
-      
+
       wdt_enable(WDTO_8S);
       WDTCSR |= (1 << WDIE);  // Enable interrupt mode
       delay(commandDelay * 1000);
@@ -180,7 +212,7 @@ void loop() {
         sendMessage(message);
         message = ID;
         cc++;
-        Serial.println("-----  SLEEP  ------");
+        Serial.println("-----------  SLEEP  -----------");
       }
 
       Serial.flush();
@@ -193,10 +225,10 @@ void loop() {
 //---------------------
 float readVoltage() {
   float vin;
-  float vin_m = analogRead(vin);
+  float vin_m = analogRead(vin_pin);
   vin = vin_m * 0.00978;  //* (8/4);
   delay(10);
-  Serial.println(", voltage: " + String(vin));
+  Serial.println("vin: " + String(vin_m) + " " + String(vin) + " v");
   return vin;
 }
 
@@ -208,6 +240,7 @@ void sendMessage(String loraMessage) {
   LoRa.print(loraMessage);
   LoRa.endPacket();
   Serial.println("message sent");
+  delay(500);
   LoRa.sleep();  // Put the LoRa module to sleep
 }
 

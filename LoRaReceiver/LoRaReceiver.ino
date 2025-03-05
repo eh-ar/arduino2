@@ -74,7 +74,7 @@ void setup() {
     Serial.print("Local IP: ");
     Serial.println(Ethernet.localIP());
     */
-  mySerial.begin(9600);
+  mySerial.begin(19200);
 
   //pinMode(0, INPUT);
   //pinMode(2, INPUT);
@@ -139,7 +139,7 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
 
   mySerial.printf("%s%d\n", rxpacket, rssi);  // Send the received data to the hardware serial port
   //mySerial.printf("%s", "\n");
-
+  //delay(500);
   memset(rxpacket, 0, sizeof(rxpacket));
 
   //Serial.println("[OnRxDone] Restarting Radio...");
@@ -171,7 +171,7 @@ void OnTxTimeout(void) {
 }
 
 String getID(String string) {
-  int ind1 = string.indexOf(',');
+  int ind1 = string.indexOf(';;');
   return string.substring(0, ind1);
 }
 
@@ -182,5 +182,5 @@ String getVoltage(String string) {
   int ind2 = string.indexOf(',', ind1+1);
   int ind3 = string.indexOf(',', ind2+1);
   int ind4 = string.indexOf(',', ind3+1);
-  return string.substring(ind3+1, ind4+1);
+  return string.substring(ind2+1, ind3+1);
 }

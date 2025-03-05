@@ -16,7 +16,7 @@ unsigned long timerValue = 0;
 #define Rx 3
 #define Tx 2
 
-int temt6000Pin = A1;
+int temt6000Pin = A0;
 float light;
 int light_value;
 
@@ -48,8 +48,8 @@ void setup() {
   mySerial.begin(9600);
   node.begin(50, mySerial);
   // Set up the watchdog timer to wake up every 8 seconds
-  wdt_enable(WDTO_8S);
-  WDTCSR |= (1 << WDIE);  // Enable interrupt mode
+  //wdt_enable(WDTO_8S);
+  //WDTCSR |= (1 << WDIE);  // Enable interrupt mode
 }
 
 int cc = 0;
@@ -60,7 +60,7 @@ String d;
 uint16_t val;
 
 void loop() {
-  if (f_wdt) {
+  if (1){//(f_wdt) {
     f_wdt = false;  // Clear the watchdog timer flag
 
     // Increment wake-up counter
@@ -72,8 +72,8 @@ void loop() {
 
       cc++;
       int light_value = analogRead(temt6000Pin);
-      light = light_value * 0.0976;
-      
+      light = light_value * 0.0097;
+      /*
       Serial.println("Check RS485");
       result = node.readHoldingRegisters(0, 5);
       d = "";
@@ -86,11 +86,13 @@ void loop() {
           d = d + " " + String(val);
         }
       }
-
+*/
       String mmsg = String(timerValue);
+      LoRa.begin(BAND);
       LoRa.beginPacket();
       LoRa.print(mmsg + " " + cc + " " + light + " " + d);
       LoRa.endPacket();
+      LoRa.sleep();
       Serial.println("Sent: " + mmsg + " " + cc + " - light: " + light );
       Serial.println(d);
 
@@ -100,8 +102,9 @@ void loop() {
     }
 
     // Enter sleep mode
-    sleepNow();
+    //sleepNow();
   }
+  delay(2000);
 }
 
 void sleepNow() {
