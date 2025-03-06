@@ -123,31 +123,45 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
 
   unsigned long currentMillis = millis();
   String ID = getID(String(rxpacket));
-  String vin = getVoltage(String(rxpacket));
-  //Serial.println(ID);
-  int sec = 0;
+  bool idMatch = false;
   for (int ii = 0; ii < 8; ii++) {
     if (IDs[ii] == ID) {
-      sec = (currentMillis - premilis[ii]) / 1000;
-      premilis[ii] = currentMillis;
+      idMatch = true;
+      break;
     }
   }
 
-  Serial.println("ID: " + ID + " t: " + String(sec) + " s , vin: " + vin );
-  Serial.printf("[OnRxDone] Received: \"%s\" | RSSI: %d | Length: %d\r\n", rxpacket, rssi, rxSize);
 
+  if (!idMatch) {
+    Serial.println("Device not recognized");
 
-  mySerial.printf("%s%d\n", rxpacket, rssi);  // Send the received data to the hardware serial port
-  //mySerial.printf("%s", "\n");
-  //delay(500);
+  } else {
+    String vin = getVoltage(String(rxpacket));
+    //Serial.println(ID);
+    int sec = 0;
+    for (int ii = 0; ii < 8; ii++) {
+      if (IDs[ii] == ID) {
+        sec = (currentMillis - premilis[ii]) / 1000;
+        premilis[ii] = currentMillis;
+      }
+    }
+
+    if (String(rxpacket).endsWith("register")) {
+      Serial.println("Registering Transmitter");
+    } else {
+      Serial.println("ID: " + ID + " t: " + String(sec) + " s , vin: " + vin);
+      Serial.printf("[OnRxDone] \"%s | RSSI: %d | Length: %d\r\n", rxpacket, rssi, rxSize);
+
+      mySerial.printf("%s%d\n", rxpacket, rssi);  // Send the received data to the hardware serial port
+    }
+  }
+
   memset(rxpacket, 0, sizeof(rxpacket));
 
   //Serial.println("[OnRxDone] Restarting Radio...");
   Radio.Sleep();  // Put radio to sleep before re-init
   delay(50);
   Radio.Rx(0);
-
-  //Serial.println("[OnRxDone] Waiting for next packet...");
 }
 
 void OnRxTimeout(void) {
@@ -179,8 +193,8 @@ String getID(String string) {
 
 String getVoltage(String string) {
   int ind1 = string.indexOf(',');
-  int ind2 = string.indexOf(',', ind1+1);
-  int ind3 = string.indexOf(',', ind2+1);
-  int ind4 = string.indexOf(',', ind3+1);
-  return string.substring(ind2+1, ind3+1);
+  int ind2 = string.indexOf(',', ind1 + 1);
+  int ind3 = string.indexOf(',', ind2 + 1);
+  int ind4 = string.indexOf(',', ind3 + 1);
+  return string.substring(ind2 + 1, ind3 + 1);
 }
