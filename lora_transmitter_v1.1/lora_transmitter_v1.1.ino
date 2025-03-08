@@ -22,6 +22,10 @@ unsigned long cycleTime = 3 * 1000;  // ms  (adjustable)
 unsigned long nextTransmitTime = 0;
 const unsigned long ACK_TIMEOUT = 500;
 
+volatile unsigned int interruptCounter = 0;
+volatile unsigned int inerruptsPerSecond = 60;
+
+volatile bool timeToWakeUp = false;
 void setup() {
   Serial.begin(57600);
 
@@ -40,28 +44,31 @@ void setup() {
 
   registerWithReceiver();
   // Setup Timer2
-  setupTimer2();
+  //setupTimer2();
 
   // Enable global interrupts
   sei();
 }
 
 void loop() {
-  // Sleep for the desired interval
-  while (seconds < sleepInterval) {
+  Serial.println("LOOP");
+  delay(5);
+  // Slee!p for the desired interval
+  while (!timeToWakeUp) {
+    //Serial.println("Sleep");
+    //delay(5);
     goToSleep();
   }
 
   // Perform your processing here
   sendData();
-  Serial.println("set Timer");
-  delay(500);
 
   setupTimer2();  // Reconfigure for next cycle
 
   // Reset the seconds counter
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-    seconds = 0;
+    interruptCounter = 0;
+    timeToWakeUp = false;
   }
 
   // Re-enable Timer2 interrupt for the next sleep cycle
@@ -69,16 +76,22 @@ void loop() {
 }
 
 void setupTimer2() {
-  // Set up Timer2 to overflow approximately every 1 second
-  TCCR2A = 0;                                        // Normal mode
+  Serial.println("TIMER");
+  delay(5);
+  TCCR2A = (1 << WGM21);                             // CTC mode
   TCCR2B = (1 << CS22) | (1 << CS21) | (1 << CS20);  // Prescaler 1024
+  OCR2A = 249;                                       // Corrected value for 1s interval
   TCNT2 = 0;
-  TIMSK2 = (1 << TOIE2);  // Enable Timer2 overflow interrupt
+  TIMSK2 = (1 << OCIE2A);  // Enable Timer2 compare match interrupt
+  Serial.println("TIMER Done");
+  delay(5);
 }
 
 void goToSleep() {
+  //Serial.println("SLEEP MODE");
+  //delay(5);
   // Enable sleep mode
-  set_sleep_mode(SLEEP_MODE_PWR_SAVE);
+  set_sleep_mode(SLEEP_MODE_IDLE);
   sleep_enable();
 
   // Go to sleep
@@ -90,17 +103,11 @@ void goToSleep() {
 
 // Timer2 overflow interrupt service routine
 ISR(TIMER2_OVF_vect) {
-  static unsigned int overflowCount = 0;
-  overflowCount++;
-
-  if (overflowCount >= 61) {  // Approximately 1 second (16 MHz / 1024 / 256)
-    overflowCount = 0;
-    seconds++;
-  }
-
-  if (seconds >= sleepInterval) {
-    // Disable Timer2 interrupt to stop waking up
-    TIMSK2 &= ~(1 << TOIE2);
+  interruptCounter++;
+  Serial.println(interruptCounter);
+  delay(5);
+  if (interruptCounter >= (inerruptsPerSecond * sleepInterval)) {
+    timeToWakeUp = true;
   }
 }
 
@@ -139,7 +146,7 @@ bool waitForAck() {
         nextTransmitTime = (unsigned long)LoRa.read() << 24 | (unsigned long)LoRa.read() << 16 | (unsigned long)LoRa.read() << 8 | LoRa.read();
 
         Serial.println("ACK: Schedueled to run in " + String(nextTransmitTime));
-
+        sleepInterval = nextTransmitTime;
         delay(5);
         return true;
       }
@@ -164,10 +171,15 @@ void registerWithReceiver() {
       firstTransmitDelay = (unsigned long)LoRa.read() << 24 | (unsigned long)LoRa.read() << 16 | (unsigned long)LoRa.read() << 8 | LoRa.read();
       cycleTime = (unsigned long)LoRa.read() << 24 | (unsigned long)LoRa.read() << 16 | (unsigned long)LoRa.read() << 8 | LoRa.read();
       nextTransmitTime = millis() + firstTransmitDelay;
+      sleepInterval = cycleTime;
       Serial.print("Schedule received. First Delay: ");
+      delay(5);
       Serial.print(firstTransmitDelay);
+      delay(5);
       Serial.print(" Cycle time: ");
-      Serial.println(cycleTime);
+      delay(5);
+      Serial.println(sleepInterval);
+      delay(5);
       return;
     }
   }
