@@ -10,8 +10,12 @@ const int NUM_TRANSMITTERS = 10;
 const unsigned long CYCLE_TIME = 30;         // s (adjustable)
 const unsigned long ACK_TIMEOUT = 2 * 1000;  // ms seconds timeout for ACK
 
-// Possible cycle times in seconds
-const unsigned long CYCLE_TIMES[] = { 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60 };
+// Possible daa collection cycle times in seconds
+const unsigned long collectionCycle[] = { 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60 };
+// Possible sync cycle times in seconds
+const unsigned long syncCycle[] = { 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60 };
+// Possible data transmitt cycle times in seconds
+const unsigned long transmittCycle[] = { 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60 };
 
 struct TransmitterSchedule {
   int id;

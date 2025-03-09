@@ -4,6 +4,7 @@
 #include <avr/sleep.h>
 #include <avr/wdt.h>
 #include <avr/power.h>
+#include <EEPROM.h>
 
 
 #define NSS 10
@@ -12,25 +13,38 @@
 #define BAND 433E6
 
 volatile boolean f_wdt = 1;
-
+unsigned long secCount = 0;
+int secCountAddress = 0;
 const int TRANSMITTER_ID = 1;                  // Change for each transmitter
 const String TRANSMITTER_NAME = "FAB0000000";  // Change for each transmitter
 unsigned long firstTransmitDelay = 0;
 volatile unsigned int cycleTime = 32;  // ms  (adjustable)
 unsigned long nextTransmitTime = 0;
 const unsigned long ACK_TIMEOUT = 2000;
+int watchDogSec = 4;  //sec
 
 void watchdogSetup() {
   // Clear watchdog reset flag
   MCUSR &= ~(1 << WDRF);
   // Set up WDT interrupt
   WDTCSR = (1 << WDCE) | (1 << WDE);
-  // Set up watchdog timer for 8 seconds timeout
-  WDTCSR = (1 << WDIE) | (1 << WDP3) | (1 << WDP0);
+
+  if (watchDogSec == 8) {
+    // Set up watchdog timer for 8 seconds timeout
+    WDTCSR = (1 << WDIE) | (1 << WDP3) | (1 << WDP0);
+  } else if (watchDogSec == 4) {
+    // Set up watchdog timer for 4 seconds timeout
+    WDTCSR = (1 << WDIE) | (1 << WDP3);  // | (1 << WDP0);
+  } else if (watchDogSec == 2) {
+    // Set WDIE (interrupt enable) and WDP2 & WDP1 (1s timeout)
+    WDTCSR = (1 << WDIE) | (1 << WDP2) | (1 << WDP1);
+  }
 }
 
 ISR(WDT_vect) {
   f_wdt = 1;  // Set watchdog timer flag
+  secCount += watchDogSec;
+  writeTimer();
 }
 
 void disableComponents() {
@@ -45,8 +59,10 @@ void enableComponents() {
 
 void sleepForSeconds(int totalSeconds) {
 
-  int iterations = totalSeconds / (8);
-  Serial.println("sleep for: " + String(iterations * 8) + " sec");
+  int iterations = totalSeconds / (watchDogSec);
+  int calcSeconds = iterations * watchDogSec;
+
+  Serial.println("sleep for: " + String(calcSeconds) + " sec");
   delay(5);
   for (int i = 0; i < iterations; i++) {
     disableComponents();  // Disable components before sleep
@@ -64,7 +80,6 @@ void sleepForSeconds(int totalSeconds) {
 }
 
 void serialEnable() {
-
   Serial.begin(57600);
   while (!Serial) {};
   Serial.println("serial enables");
@@ -87,7 +102,9 @@ void loraEnable() {
 void registerWithReceiver() {
   LoRa.beginPacket();
   LoRa.write(TRANSMITTER_ID);
-  LoRa.print("R");  // Registration request
+  LoRa.print("Reg");  // Registration request
+  LoRa.print(",");
+  LoRa.print(TRANSMITTER_NAME);
   LoRa.endPacket();
 
   Serial.println("Registration sent");
@@ -101,11 +118,11 @@ void registerWithReceiver() {
       //nextTransmitTime = millis() + firstTransmitDelay;
 
       Serial.print("Schedule received. Delay: ");
-      delay(5);
+      delay(1);
       Serial.print(" Cycle time: ");
-      delay(5);
+      delay(1);
       Serial.println(cycleTime);
-      delay(5);
+      delay(1);
       return;
     }
   }
@@ -115,18 +132,21 @@ void registerWithReceiver() {
 void sendData() {
   LoRa.beginPacket();
   LoRa.write(TRANSMITTER_ID);
-  LoRa.print("Hello from ");
-  LoRa.print(TRANSMITTER_ID);
+  Lora.print("Data");
+  LoRa.print(",");
+  LoRa.print(TRANSMITTER_NAME);
+  LoRa.print(",");
+  LoRa.print(random(0, 15));
   LoRa.endPacket();
   Serial.println("Data Sent, Waiting for ACK");
-  delay(5);
+  delay(1);
   if (!waitForAck()) {
     Serial.println("ACK Timeout, Retrying");
-    delay(5);
+    delay(1);
     sendData();
   } else {
     Serial.println("Cycle time: " + String(cycleTime));
-    delay(5);
+    delay(1);
   }
 }
 
@@ -136,25 +156,39 @@ bool waitForAck() {
   while (millis() - startTime < ACK_TIMEOUT) {
     int packetSize = LoRa.parsePacket();
     if (packetSize) {
-      if (LoRa.read() == TRANSMITTER_ID && LoRa.read() == 'A') {
+      int id = LoRa.read();
+      char com = LoRa.read();
+      Serial.println(String(id) + " " + String(com));
+      if (id == TRANSMITTER_ID && com == 'A') {
         nextTransmitTime = (unsigned long)LoRa.read() << 24 | (unsigned long)LoRa.read() << 16 | (unsigned long)LoRa.read() << 8 | LoRa.read();
 
-        Serial.println("ACK: Schedueled to run in " + String(nextTransmitTime) + " sec");
-        delay(5);
+        Serial.println("ACK");
+        delay(1);
         cycleTime = int(nextTransmitTime);
-        Serial.println("Cycle: " + String(cycleTime) + " sec");
-        delay(5);
         return true;
+      } else if (id == TRANSMITTER_ID && com == 'R') {
+        Serial.println("Register");
+        delay(1);
+        registerWithReceiver();
       }
     } else {
-      Serial.println("no packet");
+      //Serial.println("no packet");
       //Serial.println("Cycle: " + String(cycleTime) + " sec");
       //delay(5);
     }
   }
   return false;
 }
+//------------------------------
+void readTimer() {
+  //EEPROM.put(secCountAddress, secCount);
+  EEPROM.get(secCountAddress, secCount);
+}
 
+void writeTimer() {
+  EEPROM.put(secCountAddress, secCount);
+  //EEPROM.get(secCountAddress, secCount);
+}
 void setup() {
   // enable serial;
   serialEnable();
@@ -166,17 +200,20 @@ void setup() {
   watchdogSetup();
   // Put the microcontroller to sleep for a total of 24 seconds
   //sleepForSeconds(cycleTime);
+
+
+  //read timer saved in eeprom
+  readTimer();
 }
 
 void loop() {
 
   Serial.println("------ Start ---------");
-  delay(5);
+  delay(1);
+  Serial.println(String(secCount) + " s");
+  delay(1);
   sendData();
-  Serial.println("------- END --------");
-  delay(5);
-  delay(500);
-  Serial.println("Sleep: " + String(cycleTime) + " s");
-  delay(5);
+  Serial.println("------- SLEEP --------");
+  delay(50);
   sleepForSeconds(cycleTime);
 }
