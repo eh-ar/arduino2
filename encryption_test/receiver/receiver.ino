@@ -2,9 +2,11 @@
 #include <LoRa.h>
 #include <TinyAES.h>
 
-#define NSS 10    // LoRa Chip Select
-#define RST 9     // LoRa Reset
-#define DIO0 2    // LoRa Interrupt
+
+#define NSS 10
+#define NRESET 5
+#define DIO0 4
+#define BAND 433E6
 
 // AES Key (same as transmitter)
 byte aes_key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
@@ -27,7 +29,7 @@ void setup() {
 
     // Initialize LoRa
     LoRa.setPins(NSS, RST, DIO0);
-    if (!LoRa.begin(915E6)) {
+    if (!LoRa.begin(BAND)) {
         Serial.println("LoRa initialization failed!");
         while (1);
     }
