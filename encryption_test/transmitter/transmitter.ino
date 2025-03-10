@@ -1,65 +1,97 @@
 #include <SPI.h>
 #include <LoRa.h>
-#include <aes.h>
+#include "AESLib.h"  // AES library
+#include <avr/sleep.h>
+#include <avr/wdt.h>
+#include <avr/power.h>
 
+#define NSS 10  // LoRa Chip Select
+#define RST 5   // LoRa Reset
+#define DIO0 4  // LoRa Interrupt
 
-#define NSS 10
-#define NRESET 5
-#define DIO0 4
-#define BAND 433E6
+#define BAUD 57600
 
-// AES Key (128-bit)
-byte aes_key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+char ID[] = "HY08V21234567865";  // ID of container
 
-// Example message
-char message[] = "Secure LoRa Transmission!";
+// Watchdog timer setup
+volatile bool is_awake = true;
 
-int original_length = strlen(message);
-int padded_length = (original_length + 2 + 15) & ~15; // Ensure 16-byte alignment (2 bytes for length)
-byte plaintext[256];  // Buffer for plaintext (including length)
-byte encrypted_message[256];  // Buffer for encryption
+AESLib aesLib;
 
-TinyAES aes;
+#define INPUT_BUFFER_LIMIT (128 + 1)
+#define trigPin 8
+#define echoPin 10
 
-void prepareMessage() {
-    // Store the message length in the first 2 bytes (big-endian format)
-    plaintext[0] = (original_length >> 8) & 0xFF;
-    plaintext[1] = original_length & 0xFF;
+long duration;
+float longitude;
+float latitude;
 
-    // Copy message into the buffer
-    memcpy(plaintext + 2, message, original_length);
+unsigned char cleartext[INPUT_BUFFER_LIMIT] = { 0 };       // Input buffer for text
+unsigned char ciphertext[2 * INPUT_BUFFER_LIMIT] = { 0 };  // Output buffer for encrypted data
 
-    // PKCS#7 Padding
-    byte padding = padded_length - (original_length + 2);
-    for (int i = original_length + 2; i < padded_length; i++) {
-        plaintext[i] = padding;
-    }
-}
+// AES Encryption Key
+byte aes_key[] = { 57, 36, 24, 25, 28, 86, 32, 41, 31, 36, 91, 36, 51, 74, 63, 89 };
+
+// Initialization Vector (IV)
+byte aes_iv[16] = { 0x79, 0x4E, 0x98, 0x21, 0xAE, 0xD8, 0xA6, 0xAA, 0xD7, 0x97, 0x44, 0x14, 0xAB, 0xDD, 0x9F, 0x2C };
 
 void setup() {
-    Serial.begin(9600);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  Serial.begin(BAUD);
+  Serial.setTimeout(600);
 
-    // Initialize LoRa
-    LoRa.setPins(NSS, RST, DIO0);
-    if (!LoRa.begin(BAND)) {
-        Serial.println("LoRa initialization failed!");
-        while (1);
-    }
-    Serial.println("LoRa Initialized");
+  // Initialize AES
+  aesLib.gen_iv(aes_iv);
+  aesLib.set_paddingmode((paddingMode)0);
 
-    // Prepare and encrypt the message
-    prepareMessage();
-    aes.setKey(aes_key);
-    aes.encrypt(plaintext, encrypted_message, padded_length);
-
-    // Send encrypted message
-    LoRa.beginPacket();
-    LoRa.write(encrypted_message, padded_length);
-    LoRa.endPacket();
-
-    Serial.println("Encrypted message sent.");
+  // Initialize LoRa
+  LoRa.setPins(NSS, RST, DIO0);
+  if (!LoRa.begin(433E6)) {  // Set frequency to 915 MHz
+    Serial.println("Starting LoRa failed!");
+    while (1)
+      ;
+  }
+  Serial.println("LoRa Transmitter Initialized");
+  LoRa.setSyncWord(0xF3);
+  LoRa.setTxPower(20);
+  watchdogSetup();
 }
-
+int cc = 0;
 void loop() {
-    // Nothing to do here
+
+  // Trigger the sensor
+  cc++;
+  // Read the echoPin
+
+  // Calculate the coordinates
+  //longitude = (duration * 0.034 / 2) + 40.36549000080095475375537699983898;
+  //latitude = (duration * 0.034 / 2) + 50.3654;
+
+  // Convert longitude to string
+  //dtostrf(longitude, 3, 15, (char*)cleartext);
+  // Initialize message
+  String message = "This is Encryption test " + String(cc) + " This is a long Text to be encrypted in Receiver";
+  message.toCharArray((char*)cleartext, INPUT_BUFFER_LIMIT);
+  Serial.println("Message:");
+  Serial.println(message);
+  // Encrypt the message
+  uint16_t encLen = aesLib.encrypt((byte*)cleartext, sizeof(cleartext), (char*)ciphertext, aes_key, sizeof(aes_key), aes_iv);
+  Serial.println("Encrypted Message:");
+  Serial.println((char*)ciphertext);
+  /*
+  Serial.println("message");
+  LoRa.beginPacket();
+  LoRa.print(message);
+  LoRa.endPacket();
+  delay(1000);
+  */
+  // Send the encrypted message via LoRa
+  Serial.println("encrypted");
+  LoRa.beginPacket();
+  LoRa.write(ciphertext, encLen);
+  LoRa.endPacket();
+
+  //delay(500);  // Send message every 5 seconds
+  sleepForSeconds(16);
 }

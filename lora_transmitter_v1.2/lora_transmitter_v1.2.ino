@@ -132,7 +132,7 @@ void registerWithReceiver() {
 void sendData() {
   LoRa.beginPacket();
   LoRa.write(TRANSMITTER_ID);
-  Lora.print("Data");
+  LoRa.print("Data");
   LoRa.print(",");
   LoRa.print(TRANSMITTER_NAME);
   LoRa.print(",");

@@ -15,7 +15,7 @@ String acceptMessageType = "Acpt";
 String regsiterMessageType = "Regs";
 String schduleMessageType = "Sche";
 String syncMessageType = "Sync";
-String resetMessageType = "Rest"
+String resetMessageType = "Rest";
 
 const String TRANSMITTER_NAME = "FAB0000000";  // Change for each transmitter
 
@@ -51,5 +51,5 @@ void loop() {
   sendData();
   Serial.println("------- SLEEP --------");
   delay(50);
-  sleepForSeconds(cycleTime);
+  sleepForSeconds(sendCycle);
 }

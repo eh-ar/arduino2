@@ -1,66 +1,96 @@
 #include <SPI.h>
 #include <LoRa.h>
-#include <TinyAES.h>
+#include "AESLib.h"  // AES library
 
+#define NSS 10  // LoRa Chip Select
+#define RST 5   // LoRa Reset
+#define DIO0 4  // LoRa Interrupt
 
-#define NSS 10
-#define NRESET 5
-#define DIO0 4
-#define BAND 433E6
+#define BAUD 57600
 
-// AES Key (same as transmitter)
-byte aes_key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+AESLib aesLib;
 
-// Buffers for received and decrypted message
-byte received_message[256];
-byte decrypted_message[256];
+#define INPUT_BUFFER_LIMIT (128 + 1)
+unsigned char cleartext[INPUT_BUFFER_LIMIT] = { 0 };       // Input buffer for text
+unsigned char ciphertext[2 * INPUT_BUFFER_LIMIT] = { 0 };  // Output buffer for encrypted data
 
-TinyAES aes;
+// AES Encryption Key
+byte aes_key[] = { 57, 36, 24, 25, 28, 86, 32, 41, 31, 36, 91, 36, 51, 74, 63, 89 };
 
-void removePadding(byte *message, int &length) {
-    byte padding = message[length - 1];
-    if (padding > 0 && padding <= 16) {
-        length -= padding;
-    }
-}
+// Initialization Vector (IV)
+byte aes_iv[16] = { 0x79, 0x4E, 0x98, 0x21, 0xAE, 0xD8, 0xA6, 0xAA, 0xD7, 0x97, 0x44, 0x14, 0xAB, 0xDD, 0x9F, 0x2C };
 
 void setup() {
-    Serial.begin(9600);
+  Serial.begin(BAUD);
+  Serial.setTimeout(60000);
 
-    // Initialize LoRa
-    LoRa.setPins(NSS, RST, DIO0);
-    if (!LoRa.begin(BAND)) {
-        Serial.println("LoRa initialization failed!");
-        while (1);
-    }
-    Serial.println("LoRa Initialized");
+  // Initialize AES
+  aesLib.gen_iv(aes_iv);
+  aesLib.set_paddingmode((paddingMode)0);
 
-    LoRa.receive();
+  // Initialize LoRa
+  LoRa.setPins(NSS, RST, DIO0);
+  if (!LoRa.begin(433E6)) {  // Set frequency to 915 MHz
+    Serial.println("Starting LoRa failed!");
+    while (1)
+      ;
+  }
+  Serial.println("LoRa Receiver Initialized");
+LoRa.setSyncWord(0xF3);
+  LoRa.setTxPower(20);
+  // Set the receive callback function
+  //LoRa.onReceive(onReceive);
+  //LoRa.receive();
 }
 
 void loop() {
-    if (LoRa.parsePacket()) {
-        int received_length = LoRa.readBytes(received_message, sizeof(received_message));
+//Serial.println("Recived Signal");
 
-        // Decrypt the received message
-        aes.setKey(aes_key);
-        aes.decrypt(received_message, decrypted_message, received_length);
-
-        // Extract original message length
-        int message_length = (decrypted_message[0] << 8) | decrypted_message[1];
-
-        // Remove padding
-        removePadding(decrypted_message, received_length);
-
-        // Ensure valid message length
-        if (message_length > received_length - 2) {
-            Serial.println("Error: Message length mismatch!");
-            return;
-        }
-
-        // Print the decrypted message
-        decrypted_message[message_length + 2] = '\0'; // Null-terminate string
-        Serial.print("Decrypted Message: ");
-        Serial.println((char *)(decrypted_message + 2));
+int packetSize = LoRa.parsePacket();
+  delay(10);
+  if (packetSize == 0) return;  // If no packet received, return
+Serial.println("--------------------");
+delay(5);
+Serial.println("RSSI: "+ LoRa.packetRssi());
+delay(5);
+  // Read packet into ciphertext buffer
+  for (int i = 0; i < packetSize; i++) {
+    if (i < sizeof(ciphertext)) {
+      ciphertext[i] = LoRa.read();
+    } else {
+      LoRa.read();  // Discard any extra bytes
     }
+  }
+  
+  Serial.println("Encrypted: ");
+  delay(5);
+  Serial.println((char *)ciphertext);
+  delay(5);
+  // Decrypt the message
+  uint16_t decLen = aesLib.decrypt(ciphertext, packetSize, (char *)cleartext, aes_key, sizeof(aes_key), aes_iv);
+  Serial.println("Decrypted Message:");
+  delay(5);
+  Serial.println((char *)cleartext);
+  delay(10);
+}
+// Callback function to handle received packets
+void onReceive(int packetSize) {
+  Serial.println("Recived Signal");
+  delay(10);
+  if (packetSize == 0) return;  // If no packet received, return
+
+  // Read packet into ciphertext buffer
+  for (int i = 0; i < packetSize; i++) {
+    if (i < sizeof(ciphertext)) {
+      ciphertext[i] = LoRa.read();
+    } else {
+      LoRa.read();  // Discard any extra bytes
+    }
+  }
+  Serial.println("Encrypted: ");
+  Serial.println((char *)ciphertext);
+  // Decrypt the message
+  uint16_t decLen = aesLib.decrypt(ciphertext, packetSize, (char *)cleartext, aes_key, sizeof(aes_key), aes_iv);
+  Serial.println("Decrypted Message:");
+  Serial.println((char *)cleartext);
 }
