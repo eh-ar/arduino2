@@ -18,22 +18,15 @@ volatile bool is_awake = true;
 
 AESLib aesLib;
 
-#define INPUT_BUFFER_LIMIT (128 + 1)
+#define INPUT_BUFFER_LIMIT (160 + 1)
 #define trigPin 8
 #define echoPin 10
 
-long duration;
-float longitude;
-float latitude;
-
 unsigned char cleartext[INPUT_BUFFER_LIMIT] = { 0 };       // Input buffer for text
 unsigned char ciphertext[2 * INPUT_BUFFER_LIMIT] = { 0 };  // Output buffer for encrypted data
-
-// AES Encryption Key
-byte aes_key[] = { 57, 36, 24, 25, 28, 86, 32, 41, 31, 36, 91, 36, 51, 74, 63, 89 };
-
-// Initialization Vector (IV)
+uint16_t encLen;
 byte aes_iv[16] = { 0x79, 0x4E, 0x98, 0x21, 0xAE, 0xD8, 0xA6, 0xAA, 0xD7, 0x97, 0x44, 0x14, 0xAB, 0xDD, 0x9F, 0x2C };
+
 
 void setup() {
   pinMode(trigPin, OUTPUT);
@@ -56,6 +49,7 @@ void setup() {
   LoRa.setSyncWord(0xF3);
   LoRa.setTxPower(20);
   watchdogSetup();
+  delay(1000);
 }
 int cc = 0;
 void loop() {
@@ -64,34 +58,17 @@ void loop() {
   cc++;
   // Read the echoPin
 
-  // Calculate the coordinates
-  //longitude = (duration * 0.034 / 2) + 40.36549000080095475375537699983898;
-  //latitude = (duration * 0.034 / 2) + 50.3654;
-
-  // Convert longitude to string
-  //dtostrf(longitude, 3, 15, (char*)cleartext);
-  // Initialize message
-  String message = "This is Encryption test " + String(cc) + " This is a long Text to be encrypted in Receiver";
-  message.toCharArray((char*)cleartext, INPUT_BUFFER_LIMIT);
-  Serial.println("Message:");
-  Serial.println(message);
-  // Encrypt the message
-  uint16_t encLen = aesLib.encrypt((byte*)cleartext, sizeof(cleartext), (char*)ciphertext, aes_key, sizeof(aes_key), aes_iv);
-  Serial.println("Encrypted Message:");
-  Serial.println((char*)ciphertext);
-  /*
-  Serial.println("message");
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
-  delay(1000);
-  */
+  String message = "This is Encryption test " + String(cc) + " This is a long Text to be encrypted in Receiver,This is a long Text to be encrypted in Receiver, This is a long Text to be encrypted in Receiver, This is a long Text to be encrypted in Receiver";
+  Serial.println("Length:" + String(message.length()));
+  delay(20);
+  encryptString( message);
+  
   // Send the encrypted message via LoRa
-  Serial.println("encrypted");
+  
   LoRa.beginPacket();
   LoRa.write(ciphertext, encLen);
   LoRa.endPacket();
 
   //delay(500);  // Send message every 5 seconds
-  sleepForSeconds(16);
+  sleepForSeconds(8);
 }
