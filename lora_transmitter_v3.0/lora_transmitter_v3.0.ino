@@ -6,6 +6,11 @@
 #include <avr/wdt.h>
 #include <ModbusMaster.h>
 
+//#include <Crypto.h>
+//#include <AES.h>
+//#include <Base64.h>
+
+
 // LoRa pins and settings
 #define NSS 10
 #define NRESET 5
@@ -17,6 +22,23 @@
 // SoftwareSerial pins for RS485
 SoftwareSerial mySerial(RX, TX);  // RX, TX
 ModbusMaster node;
+
+// Define AES key (16 bytes)
+byte key[16] = {
+  0x2b, 0x7e, 0x15, 0x16,
+  0x28, 0xae, 0xd2, 0xa6,
+  0xab, 0xf7, 0x1f, 0xb2,
+  0x3c, 0x4f, 0xea, 0xc8
+};
+
+// Define initialization vector (IV) (16 bytes)
+byte iv[16] = {
+  0x00, 0x01, 0x02, 0x03,
+  0x04, 0x05, 0x06, 0x07,
+  0x08, 0x09, 0x0a, 0x0b,
+  0x0c, 0x0d, 0x0e, 0x0f
+};
+
 
 // Analog read pins for battery and solar
 const int batteryPin = A0;
@@ -72,9 +94,18 @@ void wakeUp();
 void setupWatchdogTimer(int interval);
 bool waitForAckMessage(String expectedMessageType, unsigned long timeout);
 void collectData();
-String readRS485();
-void checkAndPerformTimingOperations();
 
+void checkAndPerformTimingOperations();
+// Function prototypes for encryption and decryption
+String encryptMessage(String message);
+String decryptMessage(String message);
+
+unsigned long wakeupCounter = 0;
+unsigned long wakeupTimer = 0;
+
+int syncCycle = 5;
+int dataTransmitCycle = 15;
+int dataCollectionCycle = 5;
 
 //-----   SETUP ----------------
 
@@ -113,52 +144,48 @@ void loop() {
 
 void sendRegisterMessage() {
   String message = id + ",Re";
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
+  loraSend(message);
 }
 
 void sendData() {
+  // Get the last entry address from EEPROM
+  int lastEntryAddress = getLastEntryAddress();
+
   SensorData dataEntries[maxDataEntries];
   int dataSize = 0;
 
   // Read stored data from EEPROM
   for (int i = 0; i < maxDataEntries; i++) {
-    dataEntries[i] = readDataFromEEPROM(eepromStartAddress + i * sizeof(SensorData));
+    int address = eepromStartAddress + ((lastEntryAddress - eepromStartAddress - i * sizeof(SensorData)) % (maxDataEntries * sizeof(SensorData)));
+    dataEntries[i] = readDataFromEEPROM(address);
     if (dataEntries[i].timestamp != 0) {
       dataSize++;
     }
   }
 
   // Calculate statistics
-  calculateStatistics(dataEntries, dataSize);
+  String message = calculateStatistics(dataEntries, dataSize);
 
   // Prepare message to send to receiver
-  // Example: Sending statistics of Sensor 1 RH
-  float s1RhMin = calculateMin(s1RhData, dataSize);
-  float s1RhMax = calculateMax(s1RhData, dataSize);
-  float s1RhAvg = calculateAvg(s1RhData, dataSize);
-  float s1RhStdDev = calculateStdDev(s1RhData, dataSize);
 
-  String message = id + ",Da," +
-                   String(s1RhMin) + "," + String(s1RhMax) + "," + String(s1RhAvg) + "," + String(s1RhStdDev);
+
 
   // Send the message
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
+  loraSend(message);
 }
 
 
 void sendSyncMessage() {
   String message = id + ",Sy";
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
+  loraSend(message);
 }
 
 void sendScheduleMessage() {
   String message = id + ",Sh";
+  loraSend(message);
+}
+
+void loraSend(String message) {
   LoRa.beginPacket();
   LoRa.print(message);
   LoRa.endPacket();
@@ -193,7 +220,7 @@ void collectData() {
   data.solarVoltage = solarVoltage;
   // Turn on sensor 1, wait for stabilization, and read RS485
   turnSensor(sensorPin1, "on");
-  sensorData[6] = { 0, 0, 0, 0, 0, 0 };
+  resetSensorData();
   readRS485(30, 0, 5);
   turnSensor(sensorPin1, "off");
 
@@ -206,7 +233,7 @@ void collectData() {
 
   // Turn on sensor 2, wait for stabilization, and read RS485
   turnSensor(sensorPin2, "on");
-  sensorData[6] = { 0, 0, 0, 0, 0, 0 };
+  resetSensorData();
   readRS485(30, 0, 5);
   turnSensor(sensorPin2, "off");
 
@@ -219,7 +246,7 @@ void collectData() {
 
   // Turn on sensor 3, wait for stabilization, and read RS485
   turnSensor(sensorPin3, "on");
-  sensorData[6] = { 0, 0, 0, 0, 0, 0 };
+  resetSensorData();
   readRS485(30, 0, 5);
   turnSensor(sensorPin3, "off");
 
@@ -236,15 +263,45 @@ void collectData() {
 
   // Save the collected data to EEPROM
   saveDataToEEPROM(data, address);
+
+  // Save the last entry address to EEPROM
+  saveLastEntryAddress(address);
 }
 
+void resetSensorData() {
+  sensorData[0] = 0;
+  sensorData[0] = 0;
+  sensorData[0] = 0;
+  sensorData[0] = 0;
+  sensorData[0] = 0;
+  sensorData[0] = 0;
+}
+void saveLastEntryAddress(int address) {
+  EEPROM.write(eepromStartAddress - 2, address & 0xFF);         // Lower byte
+  EEPROM.write(eepromStartAddress - 1, (address >> 8) & 0xFF);  // Upper byte
+}
+
+int getLastEntryAddress() {
+  int address = EEPROM.read(eepromStartAddress - 2) | (EEPROM.read(eepromStartAddress - 1) << 8);
+  return address;
+}
+
+void saveDataToEEPROM(SensorData data, int address) {
+  EEPROM.put(address, data);
+}
+
+SensorData readDataFromEEPROM(int address) {
+  SensorData data;
+  EEPROM.get(address, data);
+  return data;
+}
 
 
 void checkAndPerformTimingOperations() {
   // Determine which operations need to be performed without executing them
-  bool collectRequired = (wakeupCounter % dataCollectionCycle == 0);
-  bool sendRequired = (wakeupCounter % dataTransmitCycle == 0);
-  bool syncRequired = (wakeupCounter % syncCycle == 0);
+  bool collectRequired = (wakeupTimer % dataCollectionCycle == 0);
+  bool sendRequired = (wakeupTimer % dataTransmitCycle == 0);
+  bool syncRequired = (wakeupTimer % syncCycle == 0);
 
   // Perform the operations based on priority: collecting, sending, then synchronizing
   if (collectRequired) {
@@ -258,6 +315,9 @@ void checkAndPerformTimingOperations() {
   }
 }
 
+void syncTime(){
+
+}
 void resetArduino() {
   wdt_enable(WDTO_15MS);  // Enable watchdog timer for 15 ms to trigger a system reset
   while (1) {};

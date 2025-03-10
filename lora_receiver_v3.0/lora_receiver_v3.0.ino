@@ -7,6 +7,10 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
+#include <Crypto.h>
+#include <AES.h>
+#include <Base64.h>
+
 // LoRa pins and settings
 #define NSS 10
 #define NRESET 5
@@ -14,7 +18,24 @@
 #define BAND 433E6
 
 // SoftwareSerial pins for RS485
-SoftwareSerial mySerial(2, 3); // RX, TX
+SoftwareSerial mySerial(2, 3);  // RX, TX
+
+// Define AES key (16 bytes)
+byte key[16] = {
+  0x2b, 0x7e, 0x15, 0x16,
+  0x28, 0xae, 0xd2, 0xa6,
+  0xab, 0xf7, 0x1f, 0xb2,
+  0x3c, 0x4f, 0xea, 0xc8
+};
+
+// Define initialization vector (IV) (16 bytes)
+byte iv[16] = {
+  0x00, 0x01, 0x02, 0x03,
+  0x04, 0x05, 0x06, 0x07,
+  0x08, 0x09, 0x0a, 0x0b,
+  0x0c, 0x0d, 0x0e, 0x0f
+};
+
 
 // Maximum number of registered transmitters
 const int MAX_TRANSMITTERS = 5;
@@ -26,10 +47,10 @@ const int TIME_DELAY = 10;
 struct Transmitter {
   String id;
   String name;
-  int dataCollectionCycle; // In minutes
-  int dataTransmitCycle; // In minutes
-  int syncCycle; // In minutes
-  DateTime startTime; // Start time for the transmitter
+  int dataCollectionCycle;  // In minutes
+  int dataTransmitCycle;    // In minutes
+  int syncCycle;            // In minutes
+  DateTime startTime;       // Start time for the transmitter
   DateTime dataCollectionStart;
   DateTime dataTransmitStart;
   DateTime syncStart;
@@ -49,7 +70,7 @@ const char* password = "YOUR_PASSWORD";
 
 // NTP client
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000); // Update interval 1 minute
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000);  // Update interval 1 minute
 
 // Function prototypes
 void processMessage(String message);
@@ -69,7 +90,8 @@ void setup() {
   // Initialize LoRa module
   LoRa.setPins(NSS, NRESET, DIO0);
   if (!LoRa.begin(BAND)) {
-    while (1);
+    while (1)
+      ;
   }
 
   // Initialize SoftwareSerial
@@ -77,7 +99,8 @@ void setup() {
 
   // Initialize RTC
   if (!rtc.begin()) {
-    while (1); // Halt if RTC initialization fails
+    while (1)
+      ;  // Halt if RTC initialization fails
   }
 
   // Initialize WiFi
@@ -88,11 +111,11 @@ void setup() {
 
   // Initialize NTP client
   timeClient.begin();
-  updateRTCWithNTP(); // Initial RTC update
+  updateRTCWithNTP();  // Initial RTC update
 
   // Initialize registered transmitters
   for (int i = 0; i < MAX_TRANSMITTERS; i++) {
-    transmitters[i] = {"", "", 0, 0, 0, DateTime()};
+    transmitters[i] = { "", "", 0, 0, 0, DateTime() };
   }
 }
 
@@ -115,10 +138,10 @@ void processMessage(String message) {
   // Extract ID and message type from incoming message
   int commaIndex1 = message.indexOf(',');
   int commaIndex2 = message.indexOf(',', commaIndex1 + 1);
-  
-  String id = message.substring(0, commaIndex1); // ID
-  String messageType = message.substring(commaIndex1 + 1, commaIndex2); // Message Type
-  
+
+  String id = message.substring(0, commaIndex1);                         // ID
+  String messageType = message.substring(commaIndex1 + 1, commaIndex2);  // Message Type
+
   // Check if ID is valid
   if (isValidID(id)) {
     if (messageType == "Re") {
@@ -146,12 +169,12 @@ void handleRegisterMessage(String id) {
   if (transmitterCount < MAX_TRANSMITTERS) {
     Transmitter& tx = transmitters[transmitterCount];
     tx.id = id;
-    tx.name = id.substring(0, 4); // Example name extraction
+    tx.name = id.substring(0, 4);  // Example name extraction
 
     // Set specific schedule bases (timing cycles)
-    tx.dataCollectionCycle = 5; // 5 minutes
-    tx.dataTransmitCycle = 15; // 15 minutes
-    tx.syncCycle = 5; // 30 minutes
+    tx.dataCollectionCycle = 5;  // 5 minutes
+    tx.dataTransmitCycle = 15;   // 15 minutes
+    tx.syncCycle = 5;            // 30 minutes
 
     transmitterCount++;
     sendAcceptMessage(id);
@@ -177,16 +200,12 @@ void handleScheduleMessage(String id) {
 
 void sendAcceptMessage(String id) {
   String message = id + ",Ac";
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
+  loraSend(message);
 }
 
 void sendAcknowledgeMessage(String id) {
   String message = id + ",Ak";
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
+ loraSend(message);
 }
 
 void sendTimingMessage(String id) {
@@ -199,21 +218,17 @@ void sendTimingMessage(String id) {
       message += String(transmitters[i].syncCycle);
     }
   }
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
+ loraSend(message);
 }
 
 void sendResetMessage(String id) {
   String message = id + ",Rs";
-  LoRa.beginPacket();
-  LoRa.print(message);
-  LoRa.endPacket();
+  loraSend(message);
 }
 
 void scheduleTransmitters() {
   DateTime currentTime = rtc.now();
-  DateTime baseTime = DateTime(currentTime.year(), currentTime.month(), currentTime.day(), currentTime.hour(), currentTime.minute(), 0); // Round down to the nearest minute
+  DateTime baseTime = DateTime(currentTime.year(), currentTime.month(), currentTime.day(), currentTime.hour(), currentTime.minute(), 0);  // Round down to the nearest minute
 
   for (int i = 0; i < transmitterCount; i++) {
     Transmitter& tx = transmitters[i];
@@ -229,6 +244,11 @@ void scheduleTransmitters() {
   }
 }
 
+void loraSend(String message) {
+  LoRa.beginPacket();
+  LoRa.print(message);
+  LoRa.endPacket();
+}
 
 void updateRTCWithNTP() {
   // Get NTP time and set RTC

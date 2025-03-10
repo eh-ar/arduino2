@@ -7,7 +7,7 @@ float calculateAvg(int data[], int size);
 float calculateStdDev(int data[], int size);
 
 // Function to calculate statistics for sensor data
-void calculateStatistics(SensorData dataEntries[], int dataSize) {
+String calculateStatistics(SensorData dataEntries[], int dataSize) {
   // Extract sensor data arrays
   int s1RhData[dataSize], s1TData[dataSize], s1EcData[dataSize], s1PhData[dataSize], s1SaData[dataSize];
   int s2RhData[dataSize], s2TData[dataSize], s2EcData[dataSize], s2PhData[dataSize], s2SaData[dataSize];
@@ -65,7 +65,7 @@ void calculateStatistics(SensorData dataEntries[], int dataSize) {
   float s2RhStdDev = calculateStdDev(s2RhData, dataSize);
 
   float s2TMin = calculateMin(s2TData, dataSize);
-  float s2TMax = calculateMax(sTData, dataSize);
+  float s2TMax = calculateMax(s2TData, dataSize);
   float s2TAvg = calculateAvg(s2TData, dataSize);
   float s2TStdDev = calculateStdDev(s2TData, dataSize);
 
@@ -111,6 +111,7 @@ void calculateStatistics(SensorData dataEntries[], int dataSize) {
   float s3SaMax = calculateMax(s3SaData, dataSize);
   float s3SaAvg = calculateAvg(s3SaData, dataSize);
   float s3SaStdDev = calculateStdDev(s1SaData, dataSize);
+
   // Print or send the calculated statistics
   Serial.print("Sensor 1 RH - Min: ");
   Serial.print(s1RhMin);
@@ -121,24 +122,27 @@ void calculateStatistics(SensorData dataEntries[], int dataSize) {
   Serial.print(", StdDev: ");
   Serial.println(s1RhStdDev);
 
- Serial.print("Sensor 2 RH - Min: ");
-  Serial.print(s2RhMin);
-  Serial.print(", Max: ");
-  Serial.print(s2RhMax);
-  Serial.print(", Avg: ");
-  Serial.print(s2RhAvg);
-  Serial.print(", StdDev: ");
-  Serial.println(s2RhStdDev);
-
-   Serial.print("Sensor 3 RH - Min: ");
-  Serial.print(s3RhMin);
-  Serial.print(", Max: ");
-  Serial.print(s3RhMax);
-  Serial.print(", Avg: ");
-  Serial.print(s3RhAvg);
-  Serial.print(", StdDev: ");
-  Serial.println(s3RhStdDev);
   // Repeat for other statistics...
+    String message = id + ",Da,";
+  message += String(s1RhMin) + "," + String(s1RhMax) + "," + String(s1RhAvg) + "," + String(s1RhStdDev);
+  message += String(s1TMin) + "," + String(s1TMax) + "," + String(s1TAvg) + "," + String(s1TStdDev);
+  message += String(s1EcMin) + "," + String(s1EcMax) + "," + String(s1EcAvg) + "," + String(s1EcStdDev);
+  message += String(s1PhMin) + "," + String(s1PhMax) + "," + String(s1PhAvg) + "," + String(s1PhStdDev);
+  message += String(s1SaMin) + "," + String(s1SaMax) + "," + String(s1SaAvg) + "," + String(s1SaStdDev);
+
+  message += String(s2RhMin) + "," + String(s2RhMax) + "," + String(s2RhAvg) + "," + String(s2RhStdDev);
+  message += String(s2TMin) + "," + String(s2TMax) + "," + String(s2TAvg) + "," + String(s2TStdDev);
+  message += String(s2EcMin) + "," + String(s2EcMax) + "," + String(s2EcAvg) + "," + String(s2EcStdDev);
+  message += String(s2PhMin) + "," + String(s2PhMax) + "," + String(s2PhAvg) + "," + String(s2PhStdDev);
+  message += String(s2SaMin) + "," + String(s2SaMax) + "," + String(s2SaAvg) + "," + String(s2SaStdDev);
+
+  message += String(s3RhMin) + "," + String(s3RhMax) + "," + String(s3RhAvg) + "," + String(s3RhStdDev);
+  message += String(s3TMin) + "," + String(s3TMax) + "," + String(s3TAvg) + "," + String(s3TStdDev);
+  message += String(s3EcMin) + "," + String(s3EcMax) + "," + String(s3EcAvg) + "," + String(s3EcStdDev);
+  message += String(s3PhMin) + "," + String(s3PhMax) + "," + String(s3PhAvg) + "," + String(s3PhStdDev);
+  message += String(s3SaMin) + "," + String(s3SaMax) + "," + String(s3SaAvg) + "," + String(s3SaStdDev);
+
+  return message;
 }
 
 float calculateMin(int data[], int size) {

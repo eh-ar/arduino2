@@ -1,3 +1,4 @@
+int interval = 8;
 
 void enterSleep() {
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -23,7 +24,12 @@ void setupWatchdogTimer(int interval) {
 
 ISR(WDT_vect) {
   wakeUp();
-  wakeupCounter += interval;
+  wakeupTimer += interval;
+  wakeupCounter ++;
+
   EEPROM.write(0, wakeupCounter & 0xFF);
   EEPROM.write(1, (wakeupCounter >> 8) & 0xFF);
+
+  EEPROM.write(2, wakeupTimer & 0xFF);
+  EEPROM.write(3, (wakeupTimer >> 8) & 0xFF);
 }
