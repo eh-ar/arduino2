@@ -19,8 +19,7 @@ volatile bool is_awake = true;
 AESLib aesLib;
 
 #define INPUT_BUFFER_LIMIT (160 + 1)
-#define trigPin 8
-#define echoPin 10
+
 
 unsigned char cleartext[INPUT_BUFFER_LIMIT] = { 0 };       // Input buffer for text
 unsigned char ciphertext[2 * INPUT_BUFFER_LIMIT] = { 0 };  // Output buffer for encrypted data
@@ -29,8 +28,9 @@ byte aes_iv[16] = { 0x79, 0x4E, 0x98, 0x21, 0xAE, 0xD8, 0xA6, 0xAA, 0xD7, 0x97, 
 
 
 void setup() {
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
+  pinMode(A0, INPUT);
+  pinMode(A1, OUTPUT);
+  digitalWrite(A1, LOW);
   Serial.begin(BAUD);
   Serial.setTimeout(600);
 

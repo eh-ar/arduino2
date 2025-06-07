@@ -5,8 +5,8 @@
 #include <avr/wdt.h>  // Watchdog timer if needed
 
 #define NSS 10
-#define NRESET 5
-#define DIO0 4
+#define NRESET 9
+#define DIO0 8
 #define BAND 433E6
 
 int cc = 0;

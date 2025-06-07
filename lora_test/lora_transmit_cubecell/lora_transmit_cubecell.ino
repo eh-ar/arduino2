@@ -1,7 +1,7 @@
 #include <LoRa.h>
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   while (!Serial); // Wait for serial port to connect
   LoRa.setSpreadingFactor(7);
     LoRa.setSignalBandwidth(125E3);
@@ -9,7 +9,6 @@ void setup() {
     LoRa.setTxPower(23, false);
   if (!LoRa.begin(433E6)) {
     Serial.println("Starting LoRa failed!");
-    
 
     while (1);
   }
@@ -18,7 +17,8 @@ void setup() {
 void loop() {
   Serial.println("Sending packet...");
   LoRa.beginPacket();
-  LoRa.print("Hello, RFM96!");
+  uint16_t voltage = getBatteryVoltage();
+  LoRa.print("Battery: " + String(voltage));
   LoRa.endPacket();
-  delay(10000); // Send a packet every 10 seconds
+  delay(1000); // Send a packet every 10 seconds
 }
