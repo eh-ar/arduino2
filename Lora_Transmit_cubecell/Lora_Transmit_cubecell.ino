@@ -18,7 +18,7 @@
 #include <softSerial.h>
 #include <ModbusMaster.h>
 
-softSerial softwareSerial(GPIO0 /*TX pin*/, GPIO5 /*RX pin*/);
+softSerial softwareSerial(GPIO5 /*TX pin*/, GPIO0 /*RX pin*/);
 ModbusMaster node;
 
 #define RF_FREQUENCY 433000000  // Hz
@@ -61,7 +61,7 @@ void OnTxDone(void);
 void OnTxTimeout(void);
 
 #define timetillsleep 6000
-#define timetillwakeup 20000
+#define timetillwakeup 10000
 #define sensorDelay 2000
 static TimerEvent_t sleep;
 static TimerEvent_t wakeUp;
@@ -87,6 +87,7 @@ void setup() {
   Serial.begin(9600);
   //Mcu.begin(HELTEC_BOARD,SLOW_CLK_TPYE);
   pinMode(vext, OUTPUT);
+  digitalWrite(vext, HIGH);
 
   pinMode(GPIO1, OUTPUT);
   pinMode(GPIO2, OUTPUT);
@@ -96,7 +97,7 @@ void setup() {
   digitalWrite(GPIO2, LOW);
   digitalWrite(GPIO3, LOW);
 
-  digitalWrite(vext, LOW);
+
   uint16_t voltage = getBatteryVoltage();
   Serial.println(voltage);
   softwareSerial.begin(4800);

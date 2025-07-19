@@ -5,6 +5,7 @@
 #include <SoftwareSerial.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>
+#include <avr/power.h>
 #include <ModbusMaster.h>
 
 const int EEPROM_ADDRESS1 = 50;
