@@ -45,6 +45,7 @@ ModbusMaster node;
 
 #define vext GPIO6
 char txpacket[90];
+char txpacket0[BUFFER_SIZE];
 char txpacket1[BUFFER_SIZE];
 char txpacket2[BUFFER_SIZE];
 char txpacket3[BUFFER_SIZE];
@@ -60,13 +61,14 @@ static RadioEvents_t RadioEvents;
 void OnTxDone(void);
 void OnTxTimeout(void);
 
-#define timetillsleep 6000
-#define timetillwakeup 10000
+#define timetillsleep 8000
+#define timetillwakeup 20000
 #define sensorDelay 2000
 static TimerEvent_t sleep;
 static TimerEvent_t wakeUp;
 uint8_t lowpower = 1;
 
+String deviceID = "Faraz00004";
 
 void onSleep() {
   Serial.printf("Going into lowpower mode, %d ms later wake up.\r\n", timetillwakeup);
@@ -127,7 +129,8 @@ void loop() {
     lowPowerHandler();
   } else {
     if (lora_idle == true) {
-      txNumber += timetillwakeup;
+      Serial.print(":");
+      txNumber ++;
       //delay(4000);
 
       uint8_t j, result;
@@ -135,12 +138,13 @@ void loop() {
       String Out = "";
 
       uint16_t voltage = getBatteryVoltage();
-      Serial.println(voltage);
+      //Serial.println(voltage);
       digitalWrite(vext, LOW);
 
       digitalWrite(GPIO1, HIGH);
+      Serial.print(",Sensor 1");
       delay(sensorDelay);
-      txNumber += sensorDelay;
+      
       data1[0] = 0;
       data1[1] = 0;
       data1[2] = 0;
@@ -153,11 +157,13 @@ void loop() {
           data1[j] = node.getResponseBuffer(j);
         }
       }
+      
       digitalWrite(GPIO1, LOW);
 
       digitalWrite(GPIO2, HIGH);
+      Serial.print(",Sensor 2");
       delay(sensorDelay);
-      txNumber += sensorDelay;
+     
       data2[0] = 0;
       data2[1] = 0;
       data2[2] = 0;
@@ -172,8 +178,9 @@ void loop() {
       digitalWrite(GPIO2, LOW);
 
       digitalWrite(GPIO3, HIGH);
+      Serial.print(",Sensor 3");
       delay(sensorDelay);
-      txNumber += sensorDelay;
+      
       data3[0] = 0;
       data3[1] = 0;
       data3[2] = 0;
@@ -189,15 +196,17 @@ void loop() {
 
       digitalWrite(vext, HIGH);
 
-      sprintf(txpacket1, "%d,%d,%d,%d,%d,%d,%d", txNumber, voltage, data1[0], data1[1], data1[2], data1[3], data1[4]);  //start a package
-      sprintf(txpacket2, "%d,%d,%d,%d,%d", data2[0], data2[1], data2[2], data2[3], data2[4]);                           //start a package
-      sprintf(txpacket3, "%d,%d,%d,%d,%d", data3[0], data3[1], data3[2], data3[3], data3[4]);                           //start a package
+      sprintf(txpacket0, "%d,%d,%d", txNumber, 0, voltage);
+      sprintf(txpacket1, "%d,%d,%d,%d,%d,%d",1, data1[0], data1[1], data1[2], data1[3], data1[4]);  //start a package
+      sprintf(txpacket2, "%d,%d,%d,%d,%d,%d",2, data2[0], data2[1], data2[2], data2[3], data2[4]);                           //start a package
+      sprintf(txpacket3, "%d,%d,%d,%d,%d,%d",3, data3[0], data3[1], data3[2], data3[3], data3[4]);                           //start a package
 
-      Serial.printf("\r\nsending packet \"%s,%s,%s\" , length %d\r\n", txpacket1, txpacket2, txpacket3, strlen(txpacket1) + strlen(txpacket2) + strlen(txpacket3));
+      Serial.printf("\r\nsending packet \"%s,%s,%s,%s,%s\" , length %d\r\n",deviceID,txpacket0, txpacket1, txpacket2, txpacket3,strlen(txpacket0)+ strlen(txpacket1) + strlen(txpacket2) + strlen(txpacket3));
+      delay(100);
 
-
-      sprintf(txpacket, "%s,%s,%s", txpacket1, txpacket2, txpacket3);
+      sprintf(txpacket, "%s,%s,%s,%s,%s",deviceID,txpacket0, txpacket1, txpacket2, txpacket3);
       Radio.Send((uint8_t *)txpacket, strlen(txpacket));  //send the package out
+      delay(50);
       lora_idle = false;
     }
     Radio.IrqProcess();
