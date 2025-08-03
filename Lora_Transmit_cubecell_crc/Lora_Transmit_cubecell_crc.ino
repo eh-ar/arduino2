@@ -1,8 +1,8 @@
 /* Heltec Automation send communication test example
  * 
- * Modified to:
- * 1. Run immediately after startup
- * 2. Then enter regular wakeup-sleep cycle
+ * Fixed version that:
+ * 1. Runs exactly once after startup
+ * 2. Then enters regular wakeup-sleep cycle
  */
 
 #include "LoRaWan_APP.h"
@@ -41,14 +41,14 @@ char rxpacket[BUFFER_SIZE];
 
 int counter;
 bool lora_idle = true;
-bool firstRun = true;  // Flag for initial transmission
+bool firstRunComplete = false;  // Tracks if initial transmission is done
 
 static RadioEvents_t RadioEvents;
 void OnTxDone(void);
 void OnTxTimeout(void);
 
 #define timetillsleep 5000      // Time active after wakeup
-#define timetillwakeup 60000    // Time sleeping between transmissions
+#define timetillwakeup 400000    // Time sleeping between transmissions
 #define sensorDelay 2000        // Delay between sensor readings
 static TimerEvent_t sleep;
 static TimerEvent_t wakeUp;
@@ -57,16 +57,16 @@ uint8_t lowpower = 0;           // Start in active mode (0 = awake)
 String deviceID = "Faraz00004";
 
 void onSleep() {
-  Serial.printf("Going into lowpower mode, %d ms later wake up.\r\n", timetillwakeup);
-  delay(5);
+  //Serial.printf("Going into lowpower mode, %d ms later wake up.\r\n", timetillwakeup);
+  //delay(5);
   lowpower = 1;
   TimerSetValue(&wakeUp, timetillwakeup);
   TimerStart(&wakeUp);
 }
 
 void onWakeUp() {
-  Serial.printf("Woke up, %d ms later into lowpower mode.\r\n", timetillsleep);
-  delay(5);
+  //Serial.printf("Woke up, %d ms later into lowpower mode.\r\n", timetillsleep);
+  //delay(5);
   lowpower = 0;
   TimerSetValue(&sleep, timetillsleep);
   TimerStart(&sleep);
@@ -108,24 +108,20 @@ void setup() {
   TimerInit(&sleep, onSleep);
   TimerInit(&wakeUp, onWakeUp);
   
-  // Don't go to sleep immediately - we want to send first message
-  // The loop() will handle the first transmission and then start the sleep cycle
+  // Perform initial transmission right in setup()
+  //sendSensorData();
+  firstRunComplete = true;
+  
+  // Start sleep timer (will go to sleep after timetillsleep)
+  TimerSetValue(&sleep, timetillsleep);
+  TimerStart(&sleep);
 }
 
 void loop() {
-  if (firstRun) {
-    // First run after startup - send data immediately
-    sendSensorData();
-    firstRun = false;
-    // Start the sleep timer (will go to sleep after timetillsleep)
-    TimerSetValue(&sleep, timetillsleep);
-    TimerStart(&sleep);
-  }
-  else if (lowpower) {
+  if (lowpower) {
     lowPowerHandler();
-  }
-  else {
-    if (lora_idle == true) {
+  } else {
+    if (lora_idle == true && firstRunComplete) {
       sendSensorData();
     }
     Radio.IrqProcess();
@@ -139,12 +135,14 @@ void sendSensorData() {
   uint16_t data1[5], data2[5], data3[5];
   String Out = "";
 
-  uint16_t voltage = getBatteryVoltage() / 10;
+  double voltage = getBatteryVoltage();
+  //Serial.println(voltage);
+  //Serial.println(voltage/1000);
   digitalWrite(vext, LOW);
 
   // Read sensor 1
   digitalWrite(GPIO1, HIGH);
-  Serial.print("Sensor 1");
+  //Serial.print("Sensor 1");
   delay(sensorDelay);
 
   data1[0] = 0;
@@ -163,7 +161,7 @@ void sendSensorData() {
 
   // Read sensor 2
   digitalWrite(GPIO2, HIGH);
-  Serial.print(",Sensor 2");
+  //Serial.print(",Sensor 2");
   delay(sensorDelay);
 
   data2[0] = 0;
@@ -181,7 +179,7 @@ void sendSensorData() {
 
   // Read sensor 3
   digitalWrite(GPIO3, HIGH);
-  Serial.print(",Sensor 3");
+  //Serial.print(",Sensor 3");
   delay(sensorDelay);
 
   data3[0] = 0;
@@ -212,7 +210,7 @@ void sendSensorData() {
   String sensorData = packet1 + "," + packet2 + "," + packet3;
   
   // Prepare and send LoRa message
-  String data = String(0, 2) + "," + String(voltage) + "," + sensorData;
+  String data = String(0, 2) + "," + String(voltage/1000) + "," + sensorData;
   uint32_t checksum = calculateChecksum(deviceID, data, counter);
   String loraMessage = deviceID + "|" + String(counter) + "|" + data + "|" + String(checksum, HEX);
 
@@ -227,6 +225,7 @@ void sendSensorData() {
 void OnTxDone(void) {
   Serial.println("TX done......");
   delay(5);
+  Radio.Sleep();
   lora_idle = true;
 }
 
