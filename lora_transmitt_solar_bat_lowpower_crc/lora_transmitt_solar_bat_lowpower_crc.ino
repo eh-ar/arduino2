@@ -41,7 +41,7 @@ const unsigned int WDT_CYCLES_NEEDED = (MEASUREMENT_INTERVAL_MINUTES * 60) / WDT
 unsigned int counter = 0;
 unsigned int wdt_cycle_count = 0;
 int deviceAddress = 1;
-int sensorWarmUp = 2000;
+int sensorWarmUp = 5000;
 String deviceID = "Faraz00003";
 volatile bool f_wdt = true;
 SoftwareSerial mySerial(RX, TX);
