@@ -13,16 +13,17 @@
 #define BAND 433E6
 
 #define RS485 A0
-#define SENSOR_1 A1
-#define SENSOR_2 A2
-#define SENSOR_3 A3
+#define SENSOR_1 2//A1
+#define SENSOR_2 3//A2
+#define SENSOR_3 4//A3
 #define SOLAR_PIN A6
 #define BATTERY_PIN A7
 
-#define RX 7
-#define TX 6
+#define RX A1//7
+#define TX A3//6
 #define MODE_PIN 2  // PROGRAM MODE SWITCH
 #define RE_DE_PIN A2  // RE and DE control pin for MAX485
+#define  LED 2
 
 #define VOLTAGE_DIVIDER_RATIO 2.0
 #define ADC_REFERENCE 5.0

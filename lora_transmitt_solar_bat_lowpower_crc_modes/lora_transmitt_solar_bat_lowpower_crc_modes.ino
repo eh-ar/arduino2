@@ -23,7 +23,7 @@
 
 #define RX 7
 #define TX 6
-#define MODE_PIN 2  // PROGRAM MODE SWITCH
+#define LED 2  // PROGRAM MODE SWITCH
 
 #define VOLTAGE_DIVIDER_RATIO 2.0
 #define ADC_REFERENCE 5.0
@@ -156,11 +156,11 @@ void programMode() {
 }
 // ================= SETUP =================
 void setup() {
-  pinMode(MODE_PIN, INPUT_PULLUP);
+
   Serial.begin(9600);
 
   loadConfig();
-  if (digitalRead(MODE_PIN) == HIGH) programMode();
+  programMode();
 
   Serial.println("=== LOGGER MODE ===");
   power_adc_disable();
@@ -179,7 +179,11 @@ void setup() {
   pinMode(SENSOR_2, OUTPUT);
   pinMode(SENSOR_3, OUTPUT);
   pinMode(RS485, OUTPUT);
+  pinMode(LED, OUTPUT);
 
+
+  digitalWrite(LED, HIGHT);
+  delay(1000);
   takeMeasurementsAndTransmit();
   setup_watchdog(WDT_MAX_SLEEP);
 }
