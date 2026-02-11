@@ -5,6 +5,7 @@
 #include <avr/wdt.h>
 #include <avr/power.h>
 #include <EEPROM.h>
+#include <CRC32.h>
 
 // ================= PIN DEFINITIONS =================
 #define NSS 10
@@ -57,7 +58,7 @@ volatile bool f_wdt = true;
 // ================= DEFAULT CONFIG =================
 void loadDefaults() {
   cfg.deviceAddress = 1;
-  cfg.sensorWarmUp = 30000;             // 30 seconds warmup
+  cfg.sensorWarmUp = 5000;              // 30 seconds warmup
   cfg.rs485WarmUp = 100;                // RS485 warmup
   cfg.measurementIntervalMinutes = 10;  // measurement interval
   strcpy(cfg.secretKey, "LoraKey7742");
@@ -306,7 +307,7 @@ String buildSensorString(int sensorNum, uint16_t *data, int numRegisters) {
 // ================= READ ALL SENSORS =================
 String readAllSensors() {
   // Define how many registers to read from each sensor
-  const int NUM_REGISTERS = 6;
+  const int NUM_REGISTERS = 5;
 
   // Arrays to store sensor results
   uint16_t sensor1Results[NUM_REGISTERS];
@@ -345,7 +346,7 @@ String readAllSensors() {
 
   // Build the result string
   String result = buildSensorString(1, sensor1Results, NUM_REGISTERS) + "," + buildSensorString(2, sensor2Results, NUM_REGISTERS) + "," + buildSensorString(3, sensor3Results, NUM_REGISTERS);
-
+  //Serial.println("Result: " + result);
   return result;
 }
 
@@ -356,14 +357,12 @@ float readVoltage(int pin) {
 }
 
 // ================= LORA DATA CRC CALCULATION =================
-uint32_t calculateLoRaChecksum(const String &deviceID, const String &data, uint32_t counter) {
-  // Combine secret key, device ID, and data for CRC32 calculation
-  String combined = String(cfg.secretKey) + deviceID + data;
+uint32_t calculateLoRaChecksum(const String &code, const String &data, uint32_t counter) {
+  CRC32 crc;
+  crc.update((const uint8_t *)cfg.secretKey, strlen(cfg.secretKey));
+  crc.update((const uint8_t *)code.c_str(), code.length());
+  crc.update((const uint8_t *)data.c_str(), data.length());
 
-  // Convert to bytes for CRC calculation
-  uint32_t crc = calculateCRC32((const uint8_t *)combined.c_str(), combined.length());
-
-  // Add counter to CRC
   uint8_t counterBytes[4] = {
     (counter >> 0) & 0xFF,
     (counter >> 8) & 0xFF,
@@ -371,10 +370,8 @@ uint32_t calculateLoRaChecksum(const String &deviceID, const String &data, uint3
     (counter >> 24) & 0xFF
   };
 
-  uint32_t counterCRC = calculateCRC32(counterBytes, 4);
-
-  // Combine both CRCs
-  return crc ^ counterCRC;
+  crc.update(counterBytes, 4);
+  return crc.finalize();
 }
 
 // ================= TAKE MEASUREMENTS AND TRANSMIT =================
@@ -396,17 +393,34 @@ void takeMeasurementsAndTransmit() {
 
   // Read sensor data
   String sensorData = readAllSensors();
-
+  //Serial.println("Sensor: " + sensorData);
   // Build data string
   String data = String(solarVoltage, 2) + "," + String(batteryVoltage, 2) + "," + sensorData;
-
+  //Serial.println("power: " + data);
   // Calculate CRC32 for the entire message
   uint32_t checksum = calculateLoRaChecksum(cfg.deviceID, data, counter);
-
+  //Serial.println("crc: " + String(checksum, HEX));
+  //Serial.println("ID: " + String(cfg.deviceID));
+  //Serial.println("Counter" + String(counter));
   // Build final message
-  String message = String(cfg.deviceID) + "|" + String(counter) + "|" + data + "|" + String(checksum, HEX);
 
+  //Serial.println("PreMessage1: " + String(cfg.deviceID) + "|" + String(counter) );
+  //String message = String(cfg.deviceID) + "|" + String(counter) + "|" + data + "|" + String(checksum, HEX);
+  String message = "";
+  message.concat(cfg.deviceID);
+  message.concat("|");
+  message.concat(counter);
+  message.concat("|");
+  message.concat(data);
+  message.concat("|");
+  // Convert CRC to hex string first
+  char crcHex[9];  // 8 hex digits + null terminator
+  sprintf(crcHex, "%08lx", checksum);
+  message.concat(crcHex);
+
+  //Serial.println("Message: " + message);
   // Add random jitter before transmission (0-10 seconds)
+  randomSeed(analogRead(A0) + micros());
   int jitterDelay = random(0, 10000);
   Serial.print("Random jitter delay: ");
   Serial.print(jitterDelay);
@@ -459,32 +473,44 @@ void prepareForSleep() {
   ADCSRA &= ~(1 << ADEN);
 
   // Disable all peripherals
-  power_all_disable();
+  power_adc_disable();
+  power_spi_disable();
+  power_timer0_disable();
+  power_timer1_disable();
+  power_timer2_disable();
+  power_twi_disable();
 
   Serial.println("Preparing for sleep...");
+  delay(10);
 }
 
 void sleepNow() {
-  Serial.println("Entering sleep mode");
-  delay(100);  // Small delay for serial to finish
-
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
   sleep_mode();
   sleep_disable();
-  Serial.println("Woke up from sleep");
 }
-
 // ================= WATCHDOG TIMER =================
 void setup_watchdog(int timerPrescaler) {
-  byte bb = timerPrescaler & 7;
-  if (timerPrescaler > 7) bb |= (1 << 5);
-  bb |= (1 << WDCE);
+  // Disable interrupts
+  cli();
 
-  MCUSR &= ~(1 << WDRF);
+  // Reset watchdog timer
+  wdt_reset();
+
+  // Start timed sequence
   WDTCSR |= (1 << WDCE) | (1 << WDE);
-  WDTCSR = bb;
-  WDTCSR |= _BV(WDIE);
+
+  // Set prescaler - ONLY enable interrupt, NOT system reset
+  WDTCSR = (1 << WDIE) | (timerPrescaler & 0x07);
+
+  // If prescaler is > 7, set the WDP3 bit
+  if (timerPrescaler > 7) {
+    WDTCSR |= (1 << WDP3);
+  }
+
+  // Re-enable interrupts
+  sei();
 }
 
 ISR(WDT_vect) {
@@ -493,9 +519,8 @@ ISR(WDT_vect) {
 
 // ================= SETUP =================
 void setup() {
-
   Serial.begin(9600);
-  delay(1000);  // Wait for serial to initialize
+  delay(1000);
 
   Serial.println("=== SYSTEM STARTING ===");
 
@@ -513,12 +538,6 @@ void setup() {
   Serial.print("Measurement Interval: ");
   Serial.print(cfg.measurementIntervalMinutes);
   Serial.println(" minutes");
-
-  // Disable unnecessary peripherals to save power
-  power_adc_disable();
-  power_timer1_disable();
-  power_timer2_disable();
-  power_twi_disable();
 
   // Initialize LoRa
   LoRa.setPins(NSS, NRESET, DIO0);
@@ -539,6 +558,12 @@ void setup() {
   pinMode(RE_DE_PIN, OUTPUT);
   pinMode(LED, OUTPUT);
 
+// Define MODE_PIN if not defined
+#ifndef MODE_PIN
+#define MODE_PIN 5  // Use pin 5 as mode pin
+#endif
+  pinMode(MODE_PIN, INPUT_PULLUP);
+
   // Ensure all pins are LOW initially
   digitalWrite(SENSOR_1, LOW);
   digitalWrite(SENSOR_2, LOW);
@@ -546,16 +571,22 @@ void setup() {
   digitalWrite(RS485, LOW);
   digitalWrite(RE_DE_PIN, LOW);
 
-  digitalWrite(LED, HIGHT);
+  digitalWrite(LED, HIGH);
+
   // Initial sensor reading and transmission
   takeMeasurementsAndTransmit();
+  digitalWrite(LED, LOW);
 
-  // Setup watchdog timer
+  // Disable unnecessary peripherals to save power
+  power_adc_disable();
+  power_timer1_disable();
+  power_timer2_disable();
+  power_twi_disable();
+
+  // Setup watchdog timer for wakeup (interrupt only, no reset)
   setup_watchdog(WDT_MAX_SLEEP);
   Serial.println("Watchdog timer initialized");
   Serial.println("=== SETUP COMPLETE ===");
-  delay(2000);
-  digitalWrite(LED, LOW);
 }
 
 // ================= LOOP =================
@@ -567,11 +598,13 @@ void loop() {
   if (f_wdt) {
     f_wdt = false;
     wdt_cycle_count++;
+    Serial.print("Cycle: ");
+    Serial.println(wdt_cycle_count);
 
     // Check if it's time to take measurements
     if (wdt_cycle_count >= WDT_CYCLES_NEEDED) {
       wdt_cycle_count = 0;
-      digitalWrite(LED, HIGHT);
+      digitalWrite(LED, HIGH);
       takeMeasurementsAndTransmit();
       digitalWrite(LED, LOW);
     }
