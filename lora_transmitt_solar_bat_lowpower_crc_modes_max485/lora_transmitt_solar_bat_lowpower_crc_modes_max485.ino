@@ -38,6 +38,7 @@
 #define PROGRAM_WARN_TIME 30000UL  // 30 seconds
 #define PROGRAM_EXIT_TIME 60000UL  // 60 seconds
 
+
 // ================= CONFIG STRUCT =================
 struct Config {
   int deviceAddress;

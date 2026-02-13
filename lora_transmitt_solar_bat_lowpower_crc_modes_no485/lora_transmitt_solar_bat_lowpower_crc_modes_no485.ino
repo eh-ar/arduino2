@@ -154,54 +154,205 @@ void programMode() {
     }
   }
 }
-// ================= SETUP =================
-void setup() {
 
-  Serial.begin(9600);
-
-  loadConfig();
-  programMode();
-
-  Serial.println("=== LOGGER MODE ===");
-  power_adc_disable();
-  power_timer1_disable();
-  power_timer2_disable();
-  power_twi_disable();
-
-  mySerial.begin(4800);
-  node.begin(cfg.deviceAddress, mySerial);
-
-  LoRa.setPins(NSS, NRESET, DIO0);
-  LoRa.begin(BAND);
-  LoRa.sleep();
-
-  pinMode(SENSOR_1, OUTPUT);
-  pinMode(SENSOR_2, OUTPUT);
-  pinMode(SENSOR_3, OUTPUT);
-  pinMode(RS485, OUTPUT);
-  
-  delay(1000);
-  takeMeasurementsAndTransmit();
-  setup_watchdog(WDT_MAX_SLEEP);
+// ================= CRC16 CALCULATION (MODBUS) =================
+uint16_t calculateCRC16(byte *buf, int len) {
+  uint16_t crc = 0xFFFF;
+  for (int pos = 0; pos < len; pos++) {
+    crc ^= (uint16_t)buf[pos];
+    for (int i = 8; i != 0; i--) {
+      if ((crc & 0x0001) != 0) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
 }
 
-// ================= LOOP =================
-void loop() {
-  unsigned int WDT_CYCLES_NEEDED =
-    (cfg.measurementIntervalMinutes * 60) / WDT_MAX_SLEEP;
-
-  if (f_wdt) {
-    f_wdt = false;
-    wdt_cycle_count++;
-
-    if (wdt_cycle_count >= WDT_CYCLES_NEEDED) {
-      wdt_cycle_count = 0;
-      takeMeasurementsAndTransmit();
+// ================= CRC32 CALCULATION (LORA DATA) =================
+uint32_t calculateCRC32(const uint8_t *data, size_t length) {
+  uint32_t crc = 0xFFFFFFFF;
+  for (size_t i = 0; i < length; i++) {
+    crc ^= data[i];
+    for (int j = 0; j < 8; j++) {
+      if (crc & 1) {
+        crc = (crc >> 1) ^ 0xEDB88320;
+      } else {
+        crc = crc >> 1;
+      }
     }
-
-    prepareForSleep();
-    sleepNow();
   }
+  return ~crc;
+}
+
+// ================= SINGLE SENSOR READING FUNCTION =================
+bool readSingleSensor(int sensorNum, int enablePin, uint16_t *results, int numRegisters) {
+  bool success = false;
+
+  // Turn ON this specific sensor
+  digitalWrite(enablePin, HIGH);
+  Serial.print("Sensor ");
+  Serial.print(sensorNum);
+  Serial.print(": ON (Warming up ");
+  Serial.print(cfg.sensorWarmUp);
+  Serial.println(" ms)");
+
+  // Wait for sensor warmup
+  delay(cfg.sensorWarmUp);
+
+  // Initialize software serial for RS485 communication
+  SoftwareSerial rs485(RX, TX);
+  rs485.begin(4800);
+
+  // Set up RE/DE pin
+  pinMode(RE_DE_PIN, OUTPUT);
+
+  // Create Modbus request
+  byte request[8];
+
+  // Device address (using configured address from cfg)
+  request[0] = cfg.deviceAddress;
+
+  // Function code (0x03 = read holding registers)
+  request[1] = 0x03;
+
+  // Starting address (0 = register 0)
+  request[2] = highByte(0);
+  request[3] = lowByte(0);
+
+  // Number of registers to read
+  request[4] = highByte(numRegisters);
+  request[5] = lowByte(numRegisters);
+
+  // Calculate CRC16 for Modbus frame
+  uint16_t crc = calculateCRC16(request, 6);
+  request[6] = lowByte(crc);
+  request[7] = highByte(crc);
+
+  // Enable RS485 transmitter
+  digitalWrite(RE_DE_PIN, HIGH);  // Enable transmit mode
+
+  // Send Modbus request
+  rs485.write(request, sizeof(request));
+  rs485.flush();
+
+  // Switch to receive mode
+  digitalWrite(RE_DE_PIN, LOW);  // Enable receive mode
+
+  // Wait for response with timeout
+  unsigned long startTime = millis();
+
+  while (millis() - startTime < 2000) {  // 2 second timeout
+    if (rs485.available() >= 5 + numRegisters * 2) {
+      // Read response
+      byte response[5 + numRegisters * 2];
+      rs485.readBytes(response, sizeof(response));
+
+      // Verify CRC16 of response
+      uint16_t receivedCRC = (response[sizeof(response) - 1] << 8) | response[sizeof(response) - 2];
+      uint16_t calculatedCRC = calculateCRC16(response, sizeof(response) - 2);
+
+      if (receivedCRC == calculatedCRC) {
+        // Extract register values
+        for (int i = 0; i < numRegisters; i++) {
+          results[i] = (response[3 + i * 2] << 8) | response[4 + i * 2];
+        }
+        success = true;
+        Serial.print("Sensor ");
+        Serial.print(sensorNum);
+        Serial.println(": Read successful");
+      } else {
+        Serial.print("Sensor ");
+        Serial.print(sensorNum);
+        Serial.println(": CRC error");
+        // Initialize results to zero on error
+        for (int i = 0; i < numRegisters; i++) {
+          results[i] = 0;
+        }
+      }
+      break;
+    }
+  }
+
+  // If timeout occurred
+  if (!success && (millis() - startTime >= 2000)) {
+    Serial.print("Sensor ");
+    Serial.print(sensorNum);
+    Serial.println(": Timeout");
+    // Initialize results to zero on timeout
+    for (int i = 0; i < numRegisters; i++) {
+      results[i] = 0;
+    }
+  }
+
+  // Turn OFF this sensor
+  digitalWrite(enablePin, LOW);
+  Serial.print("Sensor ");
+  Serial.print(sensorNum);
+  Serial.println(": OFF");
+
+  // Clean up
+  rs485.end();
+
+  return success;
+}
+
+// ================= BUILD SENSOR STRING =================
+String buildSensorString(int sensorNum, uint16_t *data, int numRegisters) {
+  String result = String(sensorNum);
+  for (int i = 0; i < numRegisters; i++) {
+    result += "," + String(data[i]);
+  }
+  return result;
+}
+
+// ================= READ ALL SENSORS =================
+String readAllSensors() {
+  // Define how many registers to read from each sensor
+  const int NUM_REGISTERS = 5;
+
+  // Arrays to store sensor results
+  uint16_t sensor1Results[NUM_REGISTERS];
+  uint16_t sensor2Results[NUM_REGISTERS];
+  uint16_t sensor3Results[NUM_REGISTERS];
+
+  // Enable RS485 transceiver
+  pinMode(RS485, OUTPUT);
+  digitalWrite(RS485, HIGH);
+  Serial.println("RS485: Enabled");
+
+  // Small delay for RS485 stabilization
+  delay(cfg.rs485WarmUp);
+
+  // Read Sensor 1
+  Serial.println("=== Reading Sensor 1 ===");
+  bool sensor1Success = readSingleSensor(1, SENSOR_1, sensor1Results, NUM_REGISTERS);
+
+  // Small delay between sensors
+  delay(100);
+
+  // Read Sensor 2
+  Serial.println("=== Reading Sensor 2 ===");
+  bool sensor2Success = readSingleSensor(2, SENSOR_2, sensor2Results, NUM_REGISTERS);
+
+  // Small delay between sensors
+  delay(100);
+
+  // Read Sensor 3
+  Serial.println("=== Reading Sensor 3 ===");
+  bool sensor3Success = readSingleSensor(3, SENSOR_3, sensor3Results, NUM_REGISTERS);
+
+  // Disable RS485 transceiver
+  digitalWrite(RS485, LOW);
+  Serial.println("RS485: Disabled");
+
+  // Build the result string
+  String result = buildSensorString(1, sensor1Results, NUM_REGISTERS) + "," + buildSensorString(2, sensor2Results, NUM_REGISTERS) + "," + buildSensorString(3, sensor3Results, NUM_REGISTERS);
+  //Serial.println("Result: " + result);
+  return result;
 }
 
 // ================= MAIN FUNCTION =================
@@ -214,10 +365,10 @@ void takeMeasurementsAndTransmit() {
   String sensorData = readAllSensors();
 
   // ----------------- RANDOM JITTER BEFORE TX -----------------
+  randomSeed(analogRead(A0) + micros());
   delay(random(0, 10000));  // 0–10 seconds
 
-  String data = String(solarVoltage, 2) + "," + String(batteryVoltage, 2) + "," + sensorData;
-
+  String data = String(solarVoltage, 2) + "," + String(batteryVoltage, 2) + "," + sensorData
   uint32_t checksum = calculateChecksum(cfg.deviceID, data, counter);
   String message = String(cfg.deviceID) + "|" + String(counter) + "|" + data + "|" + String(checksum, HEX);
 
@@ -232,45 +383,7 @@ void takeMeasurementsAndTransmit() {
   counter++;
 }
 
-// ================= SENSORS =================
-String readAllSensors() {
-  String data1 = "1,0,0,0,0,0";
-  String data2 = "2,0,0,0,0,0";
-  String data3 = "3,0,0,0,0,0";
-/*
-  digitalWrite(RS485, HIGH);
-  delay(cfg.rs485WarmUp);
-
-  digitalWrite(SENSOR_1, HIGH);
-  delay(cfg.sensorWarmUp);
-  if (node.readHoldingRegisters(0, 5) == node.ku8MBSuccess)
-    data1 = buildSensorString(1, node);
-  digitalWrite(SENSOR_1, LOW);
-
-  digitalWrite(SENSOR_2, HIGH);
-  delay(cfg.sensorWarmUp);
-  if (node.readHoldingRegisters(0, 5) == node.ku8MBSuccess)
-    data2 = buildSensorString(2, node);
-  digitalWrite(SENSOR_2, LOW);
-
-  digitalWrite(SENSOR_3, HIGH);
-  delay(cfg.sensorWarmUp);
-  if (node.readHoldingRegisters(0, 5) == node.ku8MBSuccess)
-    data3 = buildSensorString(3, node);
-  digitalWrite(SENSOR_3, LOW);
-
-  digitalWrite(RS485, LOW);
-*/
-  return data1 + "," + data2 + "," + data3;
-}
-
-String buildSensorString(int sensorNum, ModbusMaster &node) {
-  String result = String(sensorNum);
-  for (int i = 0; i < 5; i++)
-    result += "," + String(node.getResponseBuffer(i));
-  return result;
-}
-
+//--------------- 
 float readVoltage(int pin) {
   int rawValue = analogRead(pin);
   return (rawValue * ADC_REFERENCE) / 1023.0 * VOLTAGE_DIVIDER_RATIO;
@@ -326,3 +439,54 @@ uint32_t calculateChecksum(const String &code, const String &data, uint32_t coun
   crc.update(counterBytes, 4);
   return crc.finalize();
 }
+
+// ================= SETUP =================
+void setup() {
+
+  Serial.begin(9600);
+
+  loadConfig();
+  programMode();
+
+  Serial.println("=== LOGGER MODE ===");
+  power_adc_disable();
+  power_timer1_disable();
+  power_timer2_disable();
+  power_twi_disable();
+
+
+  LoRa.setPins(NSS, NRESET, DIO0);
+  LoRa.begin(BAND);
+  LoRa.sleep();
+
+  pinMode(SENSOR_1, OUTPUT);
+  pinMode(SENSOR_2, OUTPUT);
+  pinMode(SENSOR_3, OUTPUT);
+  pinMode(RS485, OUTPUT);
+  pinMode(RE_DE_PIN, OUTPUT);
+  
+  delay(1000);
+  takeMeasurementsAndTransmit();
+  setup_watchdog(WDT_MAX_SLEEP);
+}
+
+// ================= LOOP =================
+void loop() {
+  unsigned int WDT_CYCLES_NEEDED =
+    (cfg.measurementIntervalMinutes * 60) / WDT_MAX_SLEEP;
+
+  if (f_wdt) {
+    f_wdt = false;
+    wdt_cycle_count++;
+
+    if (wdt_cycle_count >= WDT_CYCLES_NEEDED) {
+      wdt_cycle_count = 0;
+      takeMeasurementsAndTransmit();
+    }
+
+    prepareForSleep();
+    sleepNow();
+  }
+}
+
+
