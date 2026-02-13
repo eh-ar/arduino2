@@ -1,7 +1,7 @@
 #include <SPI.h>
 #include <LoRa.h>
 #include <SoftwareSerial.h>
-#include <ModbusMaster.h>
+//#include <ModbusMaster.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>
 #include <avr/power.h>
@@ -56,8 +56,8 @@ unsigned int counter = 0;
 unsigned int wdt_cycle_count = 0;
 volatile bool f_wdt = true;
 
-SoftwareSerial mySerial(RX, TX);
-ModbusMaster node;
+//SoftwareSerial mySerial(RX, TX);
+//ModbusMaster node;
 
 // ================= DEFAULT CONFIG =================
 void loadDefaults() {
@@ -368,7 +368,7 @@ void takeMeasurementsAndTransmit() {
   randomSeed(analogRead(A0) + micros());
   delay(random(0, 10000));  // 0–10 seconds
 
-  String data = String(solarVoltage, 2) + "," + String(batteryVoltage, 2) + "," + sensorData
+  String data = String(solarVoltage, 2) + "," + String(batteryVoltage, 2) + "," + sensorData;
   uint32_t checksum = calculateChecksum(cfg.deviceID, data, counter);
   String message = String(cfg.deviceID) + "|" + String(counter) + "|" + data + "|" + String(checksum, HEX);
 
